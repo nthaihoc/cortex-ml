@@ -33,8 +33,9 @@ jobs:
               mkdocs-static-i18n \
               mkdocs-macros-plugin \
               mkdocs-git-revision-date-localized-plugin \
-              mkdocs-git-committers-plugin-2
-
+              mkdocs-git-committers-plugin-2 \
+              mkdocs-minify-plugin
+              
       - run: mkdocs gh-deploy --force
         env:
           CI: true
