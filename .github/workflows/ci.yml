@@ -1,0 +1,41 @@
+name: ci 
+on:
+  push:
+    branches:
+      - master 
+      - main
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV 
+
+      - uses: actions/cache@v3
+        with:
+          key: mkdocs-material-v2-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+
+      - run: | 
+          pip install --upgrade pip
+          pip install mkdocs-material \
+              mkdocs-static-i18n \
+              mkdocs-macros-plugin \
+              mkdocs-git-revision-date-localized-plugin \
+              mkdocs-git-committers-plugin-2
+
+      - run: mkdocs gh-deploy --force
+        env:
+          CI: true
+          MKDOCS_GIT_COMMITTERS_APIKEY: ${{ secrets.MKDOCS_TOKEN }}
