@@ -1,0 +1,190 @@
+site_name: "IDP Platform — Local Catalog Topology"
+site_description: "Complete developer documentation for the VSF IDP v2 Local Catalog Topology platform — covering architecture, API, CLI, VS Code extension, and more."
+site_url: "https://github.com/truongabc-group1/idp"
+docs_dir: site/docs
+site_dir: site/public
+
+repo_name: "truongabc-group1/idp"
+repo_url: "https://github.com/truongabc-group1/idp"
+edit_uri: "edit/main/idp-platform/site/docs/"
+
+copyright: "Copyright &copy; 2026 VSF IDP Platform Team"
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/graph-outline
+  favicon: assets/favicon.png
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+  - minify:
+      minify_html: true
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/truongabc-group1/idp
+      name: "GitHub Repository"
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX
+
+extra_css:
+  - assets/extra.css
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      permalink_title: "Anchor link to this section"
+  - tables
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - site/docs/includes/abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - getting-started/index.md
+      - Prerequisites: getting-started/prerequisites.md
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Configuration: getting-started/configuration.md
+  - Architecture:
+      - architecture/index.md
+      - System Overview: architecture/overview.md
+      - Module Boundaries: architecture/boundaries.md
+      - Data Flow: architecture/data-flow.md
+      - State Management: architecture/state.md
+  - Descriptor Format:
+      - descriptor/index.md
+      - VSF IDP v2: descriptor/vsf-v2.md
+      - Backstage Compatibility: descriptor/backstage.md
+      - Identity Rules: descriptor/identity.md
+      - Topology Fields: descriptor/topology.md
+  - Backend:
+      - backend/index.md
+      - CatalogWorkspace: backend/catalog-workspace.md
+      - Ingest Pipeline: backend/ingest-pipeline.md
+      - Validation Engine: backend/validation.md
+      - Local HTTP Runtime: backend/local-catalog.md
+      - File Watcher: backend/file-watcher.md
+  - HTTP API:
+      - api/index.md
+      - Endpoints Reference: api/endpoints.md
+      - Data Schemas: api/schemas.md
+      - Server-Sent Events: api/events.md
+  - Language Server:
+      - lsp/index.md
+      - Protocol: lsp/protocol.md
+      - Custom Methods: lsp/custom-methods.md
+  - Frontend:
+      - frontend/index.md
+      - Topology Viewer: frontend/topology-viewer.md
+      - Catalog Search: frontend/catalog-search.md
+      - Visual States: frontend/visual-states.md
+  - VS Code Extension:
+      - vscode/index.md
+      - Installation: vscode/installation.md
+      - Commands: vscode/commands.md
+      - Configuration: vscode/configuration.md
+      - Webview Protocol: vscode/webview-protocol.md
+  - CLI:
+      - cli/index.md
+      - Commands: cli/commands.md
+  - Diagnostics:
+      - diagnostics/index.md
+      - Diagnostic Codes: diagnostics/codes.md
+      - Severity Guide: diagnostics/severity.md
+  - Performance:
+      - performance/index.md
+      - Benchmarks: performance/benchmarks.md
+      - Scalability: performance/scalability.md
+  - Testing:
+      - testing/index.md
+      - Backend Tests: testing/backend.md
+      - Frontend Tests: testing/frontend.md
+      - Extension Tests: testing/extension.md
+      - Acceptance Coverage: testing/acceptance.md
+  - Contributing:
+      - contributing/index.md
+      - Development Workflow: contributing/workflow.md
+      - Code Conventions: contributing/conventions.md
