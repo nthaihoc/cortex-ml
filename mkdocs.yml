@@ -1,12 +1,9 @@
 site_name: "IDP Platform — Local Catalog Topology"
 site_description: "Complete developer documentation for the VSF IDP v2 Local Catalog Topology platform — covering architecture, API, CLI, VS Code extension, and more."
 site_url: "https://github.com/truongabc-group1/idp"
-docs_dir: site/docs
-site_dir: site/public
 
 repo_name: "truongabc-group1/idp"
 repo_url: "https://github.com/truongabc-group1/idp"
-edit_uri: "edit/main/idp-platform/site/docs/"
 
 copyright: "Copyright &copy; 2026 VSF IDP Platform Team"
 
