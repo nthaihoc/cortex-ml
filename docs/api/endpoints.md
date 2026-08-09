@@ -5,7 +5,7 @@ description: Detailed request and response documentation for each HTTP API endpo
 
 # :material-api: Endpoints Reference
 
-## `GET /health` — Runtime Health {#get-health}
+## :material-text-box-outline: `GET /health` — Runtime Health {#get-health}
 
 Returns the current runtime status and catalog statistics.
 
@@ -29,7 +29,7 @@ Returns the current runtime status and catalog statistics.
 
 ---
 
-## `GET /api/v1/catalog/snapshot` — Full Snapshot {#get-apiv1catalogsnapshot}
+## :material-text-box-outline: `GET /api/v1/catalog/snapshot` — Full Snapshot {#get-apiv1catalogsnapshot}
 
 Returns the complete in-memory catalog snapshot.
 
@@ -62,7 +62,7 @@ Returns the complete in-memory catalog snapshot.
 
 ---
 
-## `GET /api/v1/catalog/topology` — Focused Topology {#get-apiv1catalogtopology}
+## :material-text-box-outline: `GET /api/v1/catalog/topology` — Focused Topology {#get-apiv1catalogtopology}
 
 Returns a one-hop focused topology view centered on a given entity reference.
 
@@ -131,7 +131,7 @@ GET /api/v1/catalog/topology?root=component:platform/payment-gateway&direction=b
 
 ---
 
-## `GET /api/v1/catalog/diagnostics` — Diagnostics {#get-apiv1catalogdiagnostics}
+## :material-text-box-outline: `GET /api/v1/catalog/diagnostics` — Diagnostics {#get-apiv1catalogdiagnostics}
 
 Returns all current diagnostics across all catalog documents.
 
@@ -163,7 +163,7 @@ Returns all current diagnostics across all catalog documents.
 
 ---
 
-## `GET /api/v1/catalog/events` — SSE Stream {#get-apiv1catalogevents}
+## :material-text-box-outline: `GET /api/v1/catalog/events` — SSE Stream {#get-apiv1catalogevents}
 
 Streams catalog revision change notifications as Server-Sent Events.
 
@@ -180,7 +180,7 @@ data: {"revision":44,"changed_source_uris":[],"removed_source_uris":["file:///ol
 
 ---
 
-## `GET /api/v1/catalog/source` — Read Source {#get-apiv1catalogsource}
+## :material-text-box-outline: `GET /api/v1/catalog/source` — Read Source {#get-apiv1catalogsource}
 
 Reads the raw UTF-8 content of a discovered catalog descriptor.
 
@@ -208,7 +208,7 @@ Reads the raw UTF-8 content of a discovered catalog descriptor.
 
 ---
 
-## `PUT /api/v1/catalog/source` — Update Source {#put-apiv1catalogsource}
+## :material-text-box-outline: `PUT /api/v1/catalog/source` — Update Source {#put-apiv1catalogsource}
 
 Atomically saves new content to a discovered catalog descriptor.
 

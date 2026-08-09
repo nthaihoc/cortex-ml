@@ -55,7 +55,7 @@ graph TB
 
 ## :material-cube-outline: Component Responsibilities
 
-### :material-brain: `CatalogWorkspace` — The Deep Module
+### `CatalogWorkspace` — The Deep Module
 
 The core of the system. All catalog semantics live here.
 
@@ -83,7 +83,7 @@ diagnostics = workspace.diagnostics()
 
 ---
 
-### :material-server: `LocalCatalogRuntime` — HTTP Adapter
+### `LocalCatalogRuntime` — HTTP Adapter
 
 Wraps `CatalogWorkspace` for the browser flow.
 
@@ -94,7 +94,7 @@ Wraps `CatalogWorkspace` for the browser flow.
 
 ---
 
-### :material-language-python: `CatalogLanguageService` — LSP Adapter
+### `CatalogLanguageService` — LSP Adapter
 
 Wraps `CatalogWorkspace` for the VS Code editor flow.
 
@@ -106,7 +106,7 @@ Wraps `CatalogWorkspace` for the VS Code editor flow.
 
 ---
 
-### :material-react: Frontend — Presentation Layer
+### Frontend — Presentation Layer
 
 Pure React + ReactFlow presentation. No catalog rules are implemented here.
 
@@ -117,7 +117,7 @@ Pure React + ReactFlow presentation. No catalog rules are implemented here.
 
 ---
 
-### :material-microsoft-visual-studio-code: VS Code Extension — Host
+### VS Code Extension — Host
 
 Orchestrates the editor experience. No catalog rules.
 

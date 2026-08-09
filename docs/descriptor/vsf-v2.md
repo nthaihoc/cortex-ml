@@ -122,7 +122,7 @@ spec:
 
 ---
 
-### :material-graph: `spec.topology` Array
+### `spec.topology` Array
 
 Declares typed relations to other catalog entities. Each item requires a `ref` and may include `protocol` and `reason`.
 

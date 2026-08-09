@@ -39,13 +39,13 @@ Follow the [Code Conventions](conventions.md) and ensure all existing tests pass
 ### 4. Run the full test suite
 
 ```bash
-# Backend
+# :material-book-open-page-variant: Backend
 cd backend && python -m pytest
 
-# Frontend
+# :material-book-open-page-variant: Frontend
 cd frontend && npm test && npm run build
 
-# Extension
+# :material-book-open-page-variant: Extension
 cd vscode-extension && npm test && npm run check && npm run build
 ```
 

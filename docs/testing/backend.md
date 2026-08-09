@@ -15,10 +15,10 @@ The backend test suite uses **pytest** and covers the entire catalog pipeline fr
 cd backend
 python -m pytest
 
-# With coverage
+# :material-book-open-page-variant: With coverage
 python -m pytest --cov=app --cov-report=term-missing
 
-# Specific test file
+# :material-book-open-page-variant: Specific test file
 python -m pytest tests/test_workspace.py -v
 ```
 

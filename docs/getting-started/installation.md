@@ -29,10 +29,10 @@ cp .env.example .env
 The defaults work out of the box for local development:
 
 ```dotenv
-# Local catalog backend. Relative paths resolve from the idp-platform directory.
+# :material-book-open-page-variant: Local catalog backend. Relative paths resolve from the idp-platform directory.
 CATALOG_ROOT=../catalog-info
 
-# Optional Vite development proxy target for the loopback local catalog API.
+# :material-book-open-page-variant: Optional Vite development proxy target for the loopback local catalog API.
 VITE_LOCAL_API_TARGET=http://127.0.0.1:8000
 ```
 
@@ -86,7 +86,7 @@ The backend installs these core packages:
 ```bash
 cd ../frontend
 
-# Install dependencies
+# :material-book-open-page-variant: Install dependencies
 npm install
 ```
 
@@ -101,10 +101,10 @@ Only required for the VS Code extension development flow:
 ```bash
 cd ../vscode-extension
 
-# Install dependencies
+# :material-book-open-page-variant: Install dependencies
 npm install
 
-# Build the extension
+# :material-book-open-page-variant: Build the extension
 npm run build
 ```
 

@@ -29,7 +29,7 @@ stateDiagram-v2
 
 ## :material-information-outline: Entity States
 
-### :material-check-circle: `entity` — Fully Resolved
+### `entity` — Fully Resolved
 
 A document that parsed, validated, and normalized successfully. It has:
 
@@ -38,7 +38,7 @@ A document that parsed, validated, and normalized successfully. It has:
 - `health: healthy` (or `health: warning` for `Location` kind)
 - `freshness: current`
 
-### :material-pencil: `draft` — Never Valid
+### `draft` — Never Valid
 
 A document that has **never** successfully validated. It has:
 
@@ -46,7 +46,7 @@ A document that has **never** successfully validated. It has:
 - `health: error`
 - No resolved entity reference (or a partially-resolved one if identity was parseable)
 
-### :material-clock-alert: `stale` — Last-Valid
+### `stale` — Last-Valid
 
 A document that was **previously valid** but is **currently invalid**. It:
 
@@ -57,7 +57,7 @@ A document that was **previously valid** but is **currently invalid**. It:
 !!! important "Process restart clears stale state"
     Stale last-valid entities live only for the duration of the process. After a restart, a document with no valid content on disk becomes a draft — there is no snapshot of the last-valid state.
 
-### :material-alert: `conflict` — Duplicate Identity
+### `conflict` — Duplicate Identity
 
 When two or more documents claim the same canonical reference (`kind:namespace/name`), **neither** entity wins. Both are removed from the resolved entities map and replaced by a conflict node.
 
@@ -73,22 +73,22 @@ The conflict shows:
 `CatalogWorkspace` maintains five primary dictionaries:
 
 ```python
-# Authoritative entities: reference → CatalogEntity
+# :material-book-open-page-variant: Authoritative entities: reference → CatalogEntity
 _entities: dict[str, CatalogEntity]
 
-# Candidates awaiting authority resolution: reference → {uri → CatalogEntity}
+# :material-book-open-page-variant: Candidates awaiting authority resolution: reference → {uri → CatalogEntity}
 _candidates_by_ref: dict[str, dict[str, CatalogEntity]]
 
-# Source tracking: uri → canonical reference
+# :material-book-open-page-variant: Source tracking: uri → canonical reference
 _entity_ref_by_document: dict[str, str]
 
-# Relations per document: uri → (CatalogRelation, ...)
+# :material-book-open-page-variant: Relations per document: uri → (CatalogRelation, ...)
 _relations_by_document: dict[str, tuple[CatalogRelation, ...]]
 
-# Draft entities (never-valid): uri → DraftEntity
+# :material-book-open-page-variant: Draft entities (never-valid): uri → DraftEntity
 _drafts: dict[str, DraftEntity]
 
-# Per-document diagnostics: uri → (CatalogDiagnostic, ...)
+# :material-book-open-page-variant: Per-document diagnostics: uri → (CatalogDiagnostic, ...)
 _document_diagnostics: dict[str, tuple[CatalogDiagnostic, ...]]
 ```
 

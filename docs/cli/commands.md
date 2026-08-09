@@ -23,7 +23,7 @@ catalog --help
 
 ---
 
-## `catalog validate`
+## :material-text-box-outline: `catalog validate`
 
 ```
 catalog validate --help
@@ -39,7 +39,7 @@ catalog validate --help
 
 ---
 
-## `catalog dependency`
+## :material-text-box-outline: `catalog dependency`
 
 ```
 catalog dependency --help

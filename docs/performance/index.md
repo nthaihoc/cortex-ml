@@ -42,11 +42,11 @@ The IDP Platform is designed to handle catalog sizes up to **5,000 entities** wi
 ## :material-run: Running Benchmarks
 
 ```bash
-# Backend (Python)
+# :material-book-open-page-variant: Backend (Python)
 cd backend
 python -m scripts.benchmark_catalog
 
-# Frontend (TypeScript)
+# :material-book-open-page-variant: Frontend (TypeScript)
 cd frontend
 npm run benchmark
 ```
