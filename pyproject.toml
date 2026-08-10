@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortexml"
+version = "1.0.0"
+description = "ML platform tool support train, test and eval model"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Thai Hoc Nguyen", email = "thaihocit02@gmail.com"}
+]
+maintainers = [
+    {name = "Thai Hoc Nguyen", email = "thaihocit02@gmail.com"}
+]
+keywords = [
+    "ml-platform",
+    "machine-learning",
+    "deep-learning",
+    "speech-processing",
+]
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    "numpy==2.0.2",
+    "pandas==2.3.3",
+    "pillow==11.3.0",
+    "pydantic-settings==2.14.0",
+    "loguru==0.7.2",
+    "scikit-learn>=1.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "mkdocs-material",
+]
+
+all = [
+    "cortexml[dev]"
+]
+
+[project.scripts]
+cortexml = "cortexml.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cortexml*"]
+
+[tool.setuptools.package-data]
+corteml = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+disallow_untyped_defs = false

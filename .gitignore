@@ -148,6 +148,7 @@ activemq-data/
 *.sage.py
 
 # Environments
+.ctxml
 .env
 .envrc
 .venv
@@ -156,6 +157,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+artifacts/
+notebooks/
 
 # Spyder project settings
 .spyderproject
@@ -165,7 +168,7 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
+# /site
 
 # mypy
 .mypy_cache/
@@ -216,3 +219,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+catalog.yaml
