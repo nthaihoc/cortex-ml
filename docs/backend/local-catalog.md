@@ -39,7 +39,7 @@ CATALOG_ROOT/
 from app.local_catalog.filesystem import discover_catalog_descriptors
 
 descriptors = discover_catalog_descriptors(Path("/path/to/catalog/root"))
-# :material-book-open-page-variant: Returns a sorted list of Path objects for all catalog-info.yaml files
+# Returns a sorted list of Path objects for all catalog-info.yaml files
 ```
 
 **Rules:**
@@ -76,8 +76,8 @@ class LocalCatalogRuntime:
 from app.local_catalog.runtime import load_catalog_root
 
 runtime = load_catalog_root(Path("./catalog"))
-# :material-book-open-page-variant: Discovers, reads, and upserts all descriptors
-# :material-book-open-page-variant: Returns a fully initialized LocalCatalogRuntime
+# Discovers, reads, and upserts all descriptors
+# Returns a fully initialized LocalCatalogRuntime
 ```
 
 **File size limit:**

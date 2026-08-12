@@ -73,22 +73,22 @@ The conflict shows:
 `CatalogWorkspace` maintains five primary dictionaries:
 
 ```python
-# :material-book-open-page-variant: Authoritative entities: reference → CatalogEntity
+# Authoritative entities: reference → CatalogEntity
 _entities: dict[str, CatalogEntity]
 
-# :material-book-open-page-variant: Candidates awaiting authority resolution: reference → {uri → CatalogEntity}
+# Candidates awaiting authority resolution: reference → {uri → CatalogEntity}
 _candidates_by_ref: dict[str, dict[str, CatalogEntity]]
 
-# :material-book-open-page-variant: Source tracking: uri → canonical reference
+# Source tracking: uri → canonical reference
 _entity_ref_by_document: dict[str, str]
 
-# :material-book-open-page-variant: Relations per document: uri → (CatalogRelation, ...)
+# Relations per document: uri → (CatalogRelation, ...)
 _relations_by_document: dict[str, tuple[CatalogRelation, ...]]
 
-# :material-book-open-page-variant: Draft entities (never-valid): uri → DraftEntity
+# Draft entities (never-valid): uri → DraftEntity
 _drafts: dict[str, DraftEntity]
 
-# :material-book-open-page-variant: Per-document diagnostics: uri → (CatalogDiagnostic, ...)
+# Per-document diagnostics: uri → (CatalogDiagnostic, ...)
 _document_diagnostics: dict[str, tuple[CatalogDiagnostic, ...]]
 ```
 

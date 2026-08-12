@@ -13,13 +13,22 @@ This guide gets you from a fresh clone to a **live browser topology viewer** in 
 
 ### 1. Start the Backend
 
-=== "macOS / Linux"
+=== "macOS / Linux (pip)"
 
     ```bash
     cd idp-platform/backend
     python3.12 -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt -r requirements-dev.txt
+    python -m app.local_catalog
+    ```
+
+=== "macOS / Linux (uv)"
+
+    ```bash
+    cd idp-platform/backend
+    uv sync
+    source .venv/bin/activate
     python -m app.local_catalog
     ```
 

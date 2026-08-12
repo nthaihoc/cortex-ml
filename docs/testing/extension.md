@@ -14,16 +14,16 @@ The VS Code extension test suite uses **Vitest** and **Testing Library** to test
 ```bash
 cd vscode-extension
 
-# :material-book-open-page-variant: Run tests once
+# Run tests once
 npm test
 
-# :material-book-open-page-variant: Watch mode
+# Watch mode
 npm run test:watch
 
-# :material-book-open-page-variant: TypeScript type-check
+# TypeScript type-check
 npm run check
 
-# :material-book-open-page-variant: Build the extension bundle
+# Build the extension bundle
 npm run build
 ```
 

@@ -68,26 +68,30 @@ hide:
 
 It lets engineers **see the declared service graph of their workspace in real time** — in a browser viewer or inside VS Code — with zero external services, zero database, zero authentication, and zero network connection required after initial dependency installation.
 
-```text
-catalog-info.yaml files
-        │
-        ▼
-┌─────────────────────────────────────────────────────┐
-│                 CatalogWorkspace                     │
-│  (YAML parsing → normalization → validation →        │
-│   relation projection → conflict detection →         │
-│   last-valid state → focused topology)               │
-└──────────┬──────────────────────┬───────────────────┘
-           │                      │
-    ┌──────▼──────┐      ┌────────▼──────────┐
-    │  FastAPI    │      │  Python LSP        │
-    │  HTTP API   │      │  (stdio)           │
-    └──────┬──────┘      └────────┬──────────┘
-           │                      │
-    ┌──────▼──────┐      ┌────────▼──────────┐
-    │  React      │      │  VS Code Extension │
-    │  Browser    │      │  + Webview         │
-    └─────────────┘      └───────────────────┘
+```mermaid
+graph TB
+    FS["📄 catalog-info.yaml files"]
+
+    subgraph CW["CatalogWorkspace"]
+        direction LR
+        A["YAML parsing"] --> B["normalization"]
+        B --> C["validation"]
+        C --> D["relation projection"]
+        D --> E["conflict detection"]
+        E --> F["focused topology"]
+    end
+
+    subgraph HTTP["FastAPI · HTTP API"]
+        React["🌐 React Browser"]
+    end
+
+    subgraph LSP["Python LSP · stdio"]
+        VSCode["🖥️ VS Code Extension"]
+    end
+
+    FS --> CW
+    CW --> HTTP
+    CW --> LSP
 ```
 
 !!! info "Design Philosophy"

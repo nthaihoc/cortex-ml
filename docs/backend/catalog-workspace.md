@@ -20,7 +20,7 @@ workspace = CatalogWorkspace.open(CatalogScope(roots=("file:///path/to/catalog",
 ### Document Lifecycle
 
 ```python
-# :material-book-open-page-variant: Add or update a document
+# Add or update a document
 workspace.upsert_document(
     source_uri="file:///path/to/catalog-info.yaml",
     relative_path="my-service/catalog-info.yaml",
@@ -28,27 +28,27 @@ workspace.upsert_document(
     version="optional-version-string",
 )
 
-# :material-book-open-page-variant: Remove a document
+# Remove a document
 workspace.remove_document("file:///path/to/catalog-info.yaml")
 ```
 
 ### Reading State
 
 ```python
-# :material-book-open-page-variant: Full in-memory snapshot
+# Full in-memory snapshot
 snapshot: CatalogSnapshot = workspace.snapshot()
 
-# :material-book-open-page-variant: All current diagnostics
+# All current diagnostics
 diagnostics: tuple[CatalogDiagnostic, ...] = workspace.diagnostics()
 
-# :material-book-open-page-variant: One-hop focused topology
+# One-hop focused topology
 topology: FocusedTopology = workspace.focused_topology(
     "component:platform/payment-gateway",
     direction="both",  # "incoming" | "outgoing" | "both"
     depth=1,           # Fixed at 1
 )
 
-# :material-book-open-page-variant: Topology by document URI (before entity is resolved)
+# Topology by document URI (before entity is resolved)
 topology = workspace.focused_topology_for_document(
     "file:///path/to/catalog-info.yaml",
     direction="both",

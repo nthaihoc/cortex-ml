@@ -52,6 +52,8 @@ python -m app.local_catalog
 
 This starts the FastAPI server at `http://127.0.0.1:8000` and begins watching `CATALOG_ROOT` for changes.
 
+---
+
 ## :material-test-tube: Running Tests
 
 ```bash

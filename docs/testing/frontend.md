@@ -14,16 +14,16 @@ The frontend test suite uses **Vitest** and **Testing Library** to test the Reac
 ```bash
 cd frontend
 
-# :material-book-open-page-variant: Run tests once
+# Run tests once
 npm test
 
-# :material-book-open-page-variant: Watch mode
+# Watch mode
 npm run test:watch
 
-# :material-book-open-page-variant: Performance benchmarks
+# Performance benchmarks
 npm run benchmark
 
-# :material-book-open-page-variant: Build (type-check + bundle)
+# Build (type-check + bundle)
 npm run build
 ```
 

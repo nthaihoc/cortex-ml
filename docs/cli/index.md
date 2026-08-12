@@ -21,7 +21,7 @@ The **IDP Platform CLI** is a Typer-based command-line tool for local catalog op
 ```bash
 cd cli
 pip install -e .
-# :material-book-open-page-variant: or
+# or
 uv sync
 ```
 

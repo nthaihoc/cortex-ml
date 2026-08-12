@@ -109,22 +109,22 @@ If two or more `catalog-info.yaml` files claim the **same canonical reference**,
 ```python
 from app.domain.value_objects.entity_reference import EntityReference
 
-# :material-book-open-page-variant: Parse from a full reference string
+# Parse from a full reference string
 ref = EntityReference.parse("component:platform/payment-gateway")
 print(ref.kind)      # "component"
 print(ref.namespace) # "platform"
 print(ref.name)      # "payment-gateway"
 print(ref.canonical) # "component:platform/payment-gateway"
 
-# :material-book-open-page-variant: Parse with defaults
+# Parse with defaults
 ref = EntityReference.parse(
     "payment-gateway",
     default_kind="component",
     default_namespace="platform",
 )
-# :material-book-open-page-variant: → component:platform/payment-gateway
+# → component:platform/payment-gateway
 
-# :material-book-open-page-variant: Construct from parts
+# Construct from parts
 ref = EntityReference.from_parts("component", "platform", "payment-gateway")
 ```
 
