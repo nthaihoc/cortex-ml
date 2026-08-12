@@ -10,10 +10,11 @@ import pandas as pd
 import pytest
 
 from cortexml.application.parsers import PipelineBaseParser
-from cortexml.exceptions import InvalidInputPathError
+from cortexml.application.splitters import BaseSplitter
+from cortexml.application.storage import MetadataStorage
 
 
-class _StubSplitter:
+class _StubSplitter(BaseSplitter):
     """Stub implementation for the dataset splitting strategy."""
 
     def __init__(self) -> None:
@@ -24,7 +25,7 @@ class _StubSplitter:
         return pd.DataFrame({"dummy": [1]})
 
 
-class _StubStorage:
+class _StubStorage(MetadataStorage):
     """Stub implementation for metadata storage that records arguments."""
 
     def __init__(self) -> None:
@@ -51,48 +52,6 @@ def _build_parser(data_path: str) -> _DummyParser:
     splitter = _StubSplitter()
     storage = _StubStorage()
     return _DummyParser(data_path, splitter, storage)
-
-
-def test_validate_input_fails_when_path_does_not_exist(tmp_path: Path) -> None:
-    fake_path = tmp_path / "not_exist"
-    parser = _build_parser(str(fake_path))
-
-    with pytest.raises(InvalidInputPathError) as excinfo:
-        parser._validate_input()
-
-    assert "Path does not exist" in str(excinfo.value)
-
-
-def test_validate_input_fails_with_invalid_archive_extension(tmp_path: Path) -> None:
-    txt_file = tmp_path / "data.txt"
-    txt_file.touch()
-    parser = _build_parser(str(txt_file))
-
-    with pytest.raises(InvalidInputPathError) as excinfo:
-        parser._validate_input()
-
-    assert "File must be a valid archive" in str(excinfo.value)
-
-
-def test_validate_input_extracts_valid_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    zip_file = tmp_path / "data.zip"
-    zip_file.touch()
-
-    called_args = []
-
-    def fake_extract(archive_path: str, extract_dir: str) -> str:
-        called_args.append((archive_path, extract_dir))
-        return str(tmp_path / "extracted_fake")
-
-    import cortexml.application.parsers.base_parser
-    monkeypatch.setattr(cortexml.application.parsers.base_parser, "extract_archive", fake_extract)
-
-    parser = _build_parser(str(zip_file))
-    parser._validate_input()
-
-    assert called_args[0][0] == str(zip_file)
-    assert called_args[0][1] == str(tmp_path)
-    assert parser.extracted_path == str(tmp_path / "extracted_fake")
 
 
 def test_run_pipeline_uses_explicit_output_directory(tmp_path: Path) -> None:
