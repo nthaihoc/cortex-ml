@@ -1,7 +1,5 @@
-from .pipeline import StructureScanner
-from .pipeline import run_ingestion
+from .parsers import StructureScanner
 
 __all__ = [
-    "StructureScanner",
-    "run_ingestion"
+    "StructureScanner"
 ]

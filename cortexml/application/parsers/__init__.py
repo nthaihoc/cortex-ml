@@ -1,10 +1,12 @@
-from .factory import ParserFactory
 from .base_parser import PipelineBaseParser
-from .image_parsers import ImagePatternAParser, ImagePatternBParser
+from .image_parsers import ImageFlatClassesParser, ImagePartitionedClassesParser
+from .detector import StructureScanner
+from .factory import ParserDispatcher
 
 __all__ = [
-    "ParserFactory",
     "PipelineBaseParser",
-    "ImagePatternAParser",
-    "ImagePatternBParser"
+    "ImageFlatClassesParser",
+    "ImagePartitionedClassesParser",
+    "StructureScanner",
+    "ParserDispatcher",
 ]
