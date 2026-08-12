@@ -1,7 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 import pandas as pd
-from typing import Dict, Any
+from typing import Any
 from loguru import logger
 
 from cortexml.application.splitters import BaseSplitter
@@ -9,28 +9,28 @@ from cortexml.application.storage import MetadataStorage
 
 class BaseDatasetParser(ABC):
 
-    """
-    Abstract Base Parser defining the extraction interface.
-    """
+    """Abstract Base Parser defining the extraction interface."""
 
     @abstractmethod
     def extract(self) -> pd.DataFrame:
 
-        """
-        Extracts raw data into a structured pandas DataFrame.
+        """Extracts raw data into a structured pandas DataFrame.
         
         Concrete implementations should define and document their specific Data Contract 
         (e.g., expected columns). While a standard image classification parser might 
         return ['filepath', 'label', 'split'], subclasses dealing with other data types 
         can freely define or extend these fields as needed.
+
+        Returns:
+            A pandas DataFrame containing the extracted metadata.
         """
         ...
 
 class PipelineBaseParser(BaseDatasetParser):
 
-    """
-    Template Method pattern for dataset parsing.
-    Defines the standard linear workflow.
+    """Template Method pattern for dataset parsing.
+    
+    Defines the standard linear workflow for parsing, splitting, and saving metadata.
     """
 
     def __init__(self, data_path: str, splitter: BaseSplitter, storage: MetadataStorage):
@@ -40,10 +40,14 @@ class PipelineBaseParser(BaseDatasetParser):
         self.storage = storage
         self.extracted_path = self.data_path
 
-    def run_pipeline(self, output_dir: str | None = None) -> Dict[str, Any]:
+    def run_pipeline(self, output_dir: str | None = None) -> dict[str, Any]:
+        """The Template Method defining the exact linear flow.
 
-        """
-        The Template Method defining the exact linear flow.
+        Args:
+            output_dir: The directory to save output metadata. If None, uses the extracted path.
+            
+        Returns:
+            A dictionary containing dataset statistics.
         """
 
         df = self.extract()

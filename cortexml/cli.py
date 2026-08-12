@@ -13,9 +13,21 @@ from cortexml.pipelines import DataIngestionPipeline
 @click.option("--val-ratio", type=float, default=0.1, help="Ratio of data for validation (e.g. 0.1)")
 @click.option("--test-ratio", type=float, default=0.1, help="Ratio of data for testing (e.g. 0.1)")
 def main(data_path: str, output_dir: str | None, split_type: str, train_ratio: float, val_ratio: float, test_ratio: float) -> None:
-    """
-    CortexML - Refactored ML Platform CLI.
+    """CortexML - Refactored ML Platform CLI.
+    
     Delegates all business logic to the Application layer (DataIngestionPipeline).
+
+    Args:
+        data_path: Input dataset path (.zip, .tar.gz, or directory).
+        output_dir: Output directory for metadata and extracted files.
+        split_type: Type of split to apply ('random', 'stratified', 'keep').
+        train_ratio: Ratio of data for training.
+        val_ratio: Ratio of data for validation.
+        test_ratio: Ratio of data for testing.
+        
+    Raises:
+        CortexError: If a known domain error occurs.
+        Exception: For all other unhandled errors.
     """
     try:
 

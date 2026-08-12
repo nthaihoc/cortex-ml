@@ -1,4 +1,4 @@
-from typing import Dict, Type
+from typing import Type
 from loguru import logger
 
 from .base_parser import PipelineBaseParser
@@ -8,11 +8,9 @@ from cortexml.application.storage import MetadataStorage
 from cortexml.exceptions import DatasetStructureError
 
 class ParserDispatcher:
-    """
-    Dispatcher to instantiate the correct parser based on pattern type.
-    """
+    """Dispatcher to instantiate the correct parser based on pattern type."""
     def __init__(self) -> None:
-        self._parsers: Dict[str, Type[PipelineBaseParser]] = {}
+        self._parsers: dict[str, Type[PipelineBaseParser]] = {}
 
     @classmethod
     def build(cls) -> "ParserDispatcher":
@@ -37,8 +35,19 @@ class ParserDispatcher:
         splitter: BaseSplitter, 
         storage: MetadataStorage
     ) -> PipelineBaseParser:
-        """
-        Returns the appropriate parser object based on the detected pattern.
+        """Returns the appropriate parser object based on the detected pattern.
+        
+        Args:
+            pattern_type: The detected structure pattern (e.g., 'flat_classes').
+            data_path: Path to the dataset directory.
+            splitter: The BaseSplitter instance to use.
+            storage: The MetadataStorage instance to use.
+            
+        Returns:
+            An instantiated PipelineBaseParser object.
+            
+        Raises:
+            DatasetStructureError: If the pattern_type is not registered.
         """
         parser_class = self._parsers.get(pattern_type)
         if not parser_class:

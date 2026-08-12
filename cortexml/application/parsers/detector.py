@@ -5,19 +5,22 @@ from cortexml.exceptions import DatasetStructureError
 from cortexml.utils import get_valid_dirs, get_valid_files
 
 class StructureScanner:
-    """
-    Scanner to detect the directory structure pattern robustly.
-    """
+    """Scanner to detect the directory structure pattern robustly."""
     
     @staticmethod
     def detect(data_path: str, valid_extensions: list | tuple | None = None, sample_size: int = 3) -> str:
-        """
-        Scans the directory and returns the pattern type.
+        """Scans the directory and returns the pattern type.
         
         Args:
-            data_path: Đường dẫn tới thư mục dataset.
-            valid_extensions: Danh sách đuôi file hợp lệ (vd: ['.jpg', '.png']).
-            sample_size: Số lượng file cần lấy để xác thực chéo độ sâu.
+            data_path: Path to the dataset directory.
+            valid_extensions: A list or tuple of valid file extensions (e.g., ['.jpg', '.png']). Defaults to None.
+            sample_size: Number of files to sample for cross-validating the hierarchy depth. Defaults to 3.
+
+        Returns:
+            A string representing the detected pattern type ('flat_classes' or 'partitioned_classes').
+            
+        Raises:
+            DatasetStructureError: If the structure is inconsistent or unsupported.
         """
         root_path = Path(data_path).resolve()
         

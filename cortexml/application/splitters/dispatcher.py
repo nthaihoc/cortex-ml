@@ -5,8 +5,9 @@ from .base import BaseSplitter
 from .strategies import RandomSplitter, StratifiedSplitter, KeepOriginalSplitter
 
 class SplitterDispatcher:
-    """
-    Dispatcher to instantiate the correct splitter based on split type.
+    """Dispatcher to instantiate the correct splitter based on split type.
+    
+    Implements a Fluent Builder pattern for registering splitter factories.
     """
     def __init__(self) -> None:
         self._splitters: dict[str, Callable[..., BaseSplitter]] = {}
@@ -32,8 +33,18 @@ class SplitterDispatcher:
         self._splitters[split_type] = factory
 
     def get_splitter(self, split_type: str, ratios: dict[str, float] | None = None, seed: int = 42) -> BaseSplitter:
-        """
-        Returns the appropriate splitter object.
+        """Returns the appropriate splitter object.
+        
+        Args:
+            split_type: The type of split strategy ('random', 'stratified', 'keep').
+            ratios: Dictionary of split ratios.
+            seed: Random seed for reproducibility.
+            
+        Returns:
+            An instantiated BaseSplitter object.
+            
+        Raises:
+            ValueError: If the split_type is unsupported.
         """
         factory = self._splitters.get(split_type)
         if not factory:

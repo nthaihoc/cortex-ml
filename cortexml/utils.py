@@ -8,15 +8,14 @@ from loguru import logger
 from cortexml.exceptions import InvalidInputPathError
 
 def extract_archive(data_path: str, output_dir: str | None = None) -> str:
-    """
-    Check if the file is a zip or tar archive and extract it.
+    """Extract an archive file (.zip, .tar, .gz) to the specified directory.
 
     Args:
-        data_path (str): The path to the file or directory.
-        output_dir (str): The directory where the archive should be extracted.
+        data_path: The path to the file or directory.
+        output_dir: The directory where the archive should be extracted. Defaults to None.
 
     Returns:
-        str: The path to the extracted folder if it was an archive, otherwise returns the original data_path.
+        The path to the extracted folder if it was an archive, otherwise returns the original data_path.
     
     Raises:
         InvalidInputPathError: If the data_path does not exist.
@@ -58,6 +57,15 @@ def extract_archive(data_path: str, output_dir: str | None = None) -> str:
     return data_path
 
 def get_valid_dirs(parent_dir: Path, expected_type: str = "directory") -> Generator[Path, None, None]:
+    """Yield valid subdirectories from a given parent directory, ignoring hidden ones.
+
+    Args:
+        parent_dir: The parent directory to scan.
+        expected_type: The expected type of item (used for logging warnings). Defaults to "directory".
+
+    Yields:
+        Path objects representing valid subdirectories.
+    """
     for item in parent_dir.iterdir():
         if item.name.startswith('.'):
             continue
@@ -66,7 +74,21 @@ def get_valid_dirs(parent_dir: Path, expected_type: str = "directory") -> Genera
             continue
         yield item
 
-def get_valid_files(parent_dir: Path, valid_extensions: Optional[tuple] = None, check_size: bool = False) -> Generator[Path, None, None]:
+def get_valid_files(
+    parent_dir: Path, 
+    valid_extensions: tuple | list | None = None, 
+    check_size: bool = False
+) -> Generator[Path, None, None]:
+    """Yield valid files from a given directory based on extensions and size criteria.
+
+    Args:
+        parent_dir: The directory to scan.
+        valid_extensions: A tuple or list of valid file extensions (e.g., ('.jpg', '.png')). Defaults to None.
+        check_size: If True, skips files that are exactly 0 bytes. Defaults to False.
+
+    Yields:
+        Path objects representing valid files.
+    """
     for item in parent_dir.iterdir():
         if item.name.startswith('.'):
             continue

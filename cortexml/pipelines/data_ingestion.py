@@ -6,8 +6,16 @@ from cortexml.application.splitters import SplitterDispatcher
 from cortexml.utils import extract_archive
 
 class DataIngestionPipeline:
-    """
-    Pipeline for ingesting, validating, and splitting datasets.
+    """Pipeline for ingesting, validating, and splitting datasets.
+    
+    This pipeline acts as the orchestrator for the entire data ingestion flow,
+    coordinating between extractors, splitters, and storage components.
+    
+    Args:
+        data_path: Path to the raw dataset (archive or directory).
+        output_dir: Directory to save the extracted data and metadata. Defaults to None.
+        split_type: The strategy used for splitting data ('random', 'stratified', 'keep').
+        split_ratios: Dictionary defining train/val/test split ratios. Defaults to None.
     """
     def __init__(
         self,
@@ -22,16 +30,18 @@ class DataIngestionPipeline:
         self.split_ratios = split_ratios
 
     def run(self) -> dict[str, Any]:
+        """Executes the data ingestion pipeline.
+        
+        Returns:
+            A dictionary containing ingestion statistics (e.g., total_samples, splits, labels).
         """
-        Executes the data ingestion pipeline.
-        """
-        # Step 0: Validate and Extract
+
         extracted_path = extract_archive(self.data_path, self.output_dir)
         
-        # Step 1: Detect pattern
+
         pattern = StructureScanner.detect(extracted_path)
         
-        # Step 2: Initialize Splitter and Storage
+
         splitter = (SplitterDispatcher.build()
                     .register_random()
                     .register_stratified()
@@ -39,13 +49,13 @@ class DataIngestionPipeline:
                     .get_splitter(self.split_type, self.split_ratios))
         storage = MetadataStorage()
         
-        # Step 3: Get Parser from Factory
+
         parser = (ParserDispatcher.build()
                   .register_flat_classes()
                   .register_partitioned_classes()
                   .get_parser(pattern, extracted_path, splitter, storage))
         
-        # Step 4: Run the pipeline
+
         stats = parser.run_pipeline(output_dir=self.output_dir)
         
         return stats

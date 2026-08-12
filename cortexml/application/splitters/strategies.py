@@ -7,16 +7,12 @@ from sklearn.model_selection import train_test_split
 from .base import BaseSplitter
 
 class KeepOriginalSplitter(BaseSplitter):
-    """
-    Does not change the splits. Keeps whatever was extracted.
-    """
+    """Does not change the splits. Keeps whatever was extracted."""
     def split(self, df: pd.DataFrame) -> pd.DataFrame:
         return df
 
 class RatioBasedSplitter(BaseSplitter):
-    """
-    Intermediate base class that handles ratio initialization and normalization.
-    """
+    """Intermediate base class that handles ratio initialization and normalization."""
     def __init__(self, ratios: dict[str, float] | None = None, seed: int = 42):
         self.seed = seed
         if ratios is None:
@@ -29,9 +25,9 @@ class RatioBasedSplitter(BaseSplitter):
         self.ratios = {k: v / total for k, v in self.ratios.items()}
 
 class RandomSplitter(RatioBasedSplitter):
-    """
-    Randomly splits only 'unassigned' data into train/val/test according to ratios.
-    Uses sklearn's train_test_split.
+    """Randomly splits 'unassigned' data into subsets according to ratios.
+    
+    Uses sklearn's train_test_split internally.
     """
     def split(self, df: pd.DataFrame) -> pd.DataFrame:
         unassigned_mask = df['split'] == 'unassigned'
@@ -76,10 +72,10 @@ class RandomSplitter(RatioBasedSplitter):
 
 class StratifiedSplitter(RatioBasedSplitter):
     
-    """
-    Stratified split to maintain class label distribution among splits.
-    Applies only to 'unassigned' data.
-    Uses sklearn's train_test_split with stratify parameter.
+    """Stratified split to maintain class label distribution among splits.
+    
+    Applies only to 'unassigned' data. Uses sklearn's train_test_split 
+    with the stratify parameter. Falls back to random split if stratification fails.
     """
 
     def split(self, df: pd.DataFrame) -> pd.DataFrame:
