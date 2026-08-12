@@ -1,37 +1,44 @@
 import sys
-import argparse
+import click
 from loguru import logger
 
 from cortexml.exceptions import CortexError
-from cortexml.application import run_ingestion
+from cortexml.pipelines import DataIngestionPipeline
 
-def main() -> None:
+@click.command()
+@click.option("--data-path", type=click.Path(exists=True), required=True, help="Input dataset path (.zip, .tar.gz, or directory)")
+@click.option("--output-dir", type=click.Path(), default=None, help="Output directory for metadata and extracted files")
+@click.option("--split-type", type=click.Choice(["random", "stratified", "keep"]), default="random", help="Type of split to apply")
+@click.option("--train-ratio", type=float, default=0.8, help="Ratio of data for training (e.g. 0.8)")
+@click.option("--val-ratio", type=float, default=0.1, help="Ratio of data for validation (e.g. 0.1)")
+@click.option("--test-ratio", type=float, default=0.1, help="Ratio of data for testing (e.g. 0.1)")
+def main(data_path: str, output_dir: str | None, split_type: str, train_ratio: float, val_ratio: float, test_ratio: float) -> None:
     """
-    CLI Entrypoint. 
-    Strictly handles command-line arguments and config loading.
-    Delegates all business logic to the Application layer (run_ingestion).
+    CortexML - Refactored ML Platform CLI.
+    Delegates all business logic to the Application layer (DataIngestionPipeline).
     """
-    parser = argparse.ArgumentParser(
-        description="CortexML - Refactored ML Platform",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    
-    parser.add_argument("--data-path", type=str, required=True, help="Input dataset path")
-    parser.add_argument("--output-dir", type=str, default=None, help="Output directory")
-    parser.add_argument("--split-type", type=str, default="random", choices=["random", "stratified", "keep"], help="Type of split to apply")
-    
-    args, unknown = parser.parse_known_args()
-    
     try:
-        logger.info(f"Starting CortexML Ingestion Pipeline for {args.data_path}...")
+
+        if split_type != "keep":
+            total = train_ratio + val_ratio + test_ratio
+            if abs(total - 1.0) > 1e-5:
+                logger.warning(f"Split ratios ({train_ratio}, {val_ratio}, {test_ratio}) do not sum to 1.0 (Sum: {total}).")
+
+        split_ratios = {
+            "train": train_ratio,
+            "val": val_ratio,
+            "test": test_ratio
+        }
+
+        logger.info(f"Starting CortexML Ingestion Pipeline for {data_path}...")
         
-        stats = run_ingestion(
-            data_path=args.data_path,
-            output_dir=args.output_dir or ".",
-            split_type=args.split_type,
-            # Hardcoded split ratios for now. In a real app this could be passed via args.
-            split_ratios={"train": 0.8, "val": 0.1, "test": 0.1}
+        pipeline = DataIngestionPipeline(
+            data_path=data_path,
+            output_dir=output_dir,
+            split_type=split_type,
+            split_ratios=split_ratios
         )
+        stats = pipeline.run()
         
         logger.success(f"Pipeline execution completed successfully! Results: {stats}")
         

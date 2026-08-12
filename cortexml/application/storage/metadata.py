@@ -2,14 +2,14 @@ import json
 import os
 from pathlib import Path
 import pandas as pd
-from typing import Dict, Any
+from typing import Any
 
 class MetadataStorage:
     """
     Handles saving the dataset metadata and statistics.
     """
     
-    def save(self, df: pd.DataFrame, output_dir: str) -> Dict[str, Any]:
+    def save(self, df: pd.DataFrame, output_dir: str) -> dict[str, Any]:
         """
         Saves the metadata (logical paths) and statistics.
         Does NOT copy the physical files to save space.

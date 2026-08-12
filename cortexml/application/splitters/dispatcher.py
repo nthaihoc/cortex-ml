@@ -1,15 +1,15 @@
-from typing import Dict, Type, Optional
+from typing import Callable
 from loguru import logger
 
-from cortexml.application.splitters.base import BaseSplitter
-from cortexml.application.splitters.strategies import RandomSplitter, StratifiedSplitter, KeepOriginalSplitter
+from .base import BaseSplitter
+from .strategies import RandomSplitter, StratifiedSplitter, KeepOriginalSplitter
 
 class SplitterDispatcher:
     """
     Dispatcher to instantiate the correct splitter based on split type.
     """
     def __init__(self) -> None:
-        self._splitters: Dict[str, Type[BaseSplitter]] = {}
+        self._splitters: dict[str, Callable[..., BaseSplitter]] = {}
 
     @classmethod
     def build(cls) -> "SplitterDispatcher":
@@ -17,28 +17,26 @@ class SplitterDispatcher:
         return dispatcher
 
     def register_random(self) -> "SplitterDispatcher":
-        self.register("random", RandomSplitter)
+        self.register("random", lambda ratios, seed: RandomSplitter(ratios, seed))
         return self
 
     def register_stratified(self) -> "SplitterDispatcher":
-        self.register("stratified", StratifiedSplitter)
+        self.register("stratified", lambda ratios, seed: StratifiedSplitter(ratios, seed))
         return self
 
     def register_keep(self) -> "SplitterDispatcher":
-        self.register("keep", KeepOriginalSplitter)
+        self.register("keep", lambda ratios, seed: KeepOriginalSplitter())
         return self
 
-    def register(self, split_type: str, splitter_class: Type[BaseSplitter]) -> None:
-        self._splitters[split_type] = splitter_class
+    def register(self, split_type: str, factory: Callable[..., BaseSplitter]) -> None:
+        self._splitters[split_type] = factory
 
-    def get_splitter(self, split_type: str, ratios: Optional[Dict[str, float]] = None) -> BaseSplitter:
+    def get_splitter(self, split_type: str, ratios: dict[str, float] | None = None, seed: int = 42) -> BaseSplitter:
         """
         Returns the appropriate splitter object.
         """
-        splitter_class = self._splitters.get(split_type)
-        if not splitter_class:
+        factory = self._splitters.get(split_type)
+        if not factory:
             raise ValueError(f"Unsupported split_type: {split_type}")
             
-        if split_type == "keep":
-            return splitter_class()
-        return splitter_class(ratios)
+        return factory(ratios, seed)

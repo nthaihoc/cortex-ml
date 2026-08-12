@@ -5,23 +5,27 @@ import pandas as pd
 from typing import List, Optional, Generator
 from loguru import logger
 
-from cortexml.application.parsers import PipelineBaseParser
+from .base_parser import PipelineBaseParser
 from cortexml.exceptions import DatasetStructureError, InvalidInputPathError
 from cortexml.utils import get_valid_dirs, get_valid_files
 
 class ImageBaseParser(PipelineBaseParser):
+
     """
     Base parser for images that provides common validation and initialization logic.
     """
+
     def __init__(self, data_path: str, splitter, storage, valid_extensions: Optional[tuple] = None) -> None:
         super().__init__(data_path, splitter, storage)
         self.valid_extensions = valid_extensions or ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff')
 
 class ImageFlatClassesParser(ImageBaseParser):
+
     """
     Parser for flat_classes: root/class_name/file.ext
     Defaults split to 'unassigned'.
     """
+    
     def extract(self) -> pd.DataFrame:
         data: List[dict] = []
         root_path = Path(self.extracted_path).resolve()

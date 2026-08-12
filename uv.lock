@@ -122,6 +122,7 @@ name = "cortexml"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "loguru" },
     { name = "numpy" },
     { name = "pandas" },
@@ -148,6 +149,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.4.2" },
     { name = "cortexml", extras = ["dev"], marker = "extra == 'all'" },
     { name = "loguru", specifier = "==0.7.2" },
     { name = "mkdocs-material", marker = "extra == 'dev'" },

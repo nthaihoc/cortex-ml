@@ -1,10 +1,10 @@
 from typing import Dict, Type
 from loguru import logger
 
-from cortexml.application.parsers.base_parser import PipelineBaseParser
-from cortexml.application.parsers.image_parsers import ImageFlatClassesParser, ImagePartitionedClassesParser
-from cortexml.application.splitters.base import BaseSplitter
-from cortexml.application.storage.metadata import MetadataStorage
+from .base_parser import PipelineBaseParser
+from .image_parsers import ImageFlatClassesParser, ImagePartitionedClassesParser
+from cortexml.application.splitters import BaseSplitter
+from cortexml.application.storage import MetadataStorage
 from cortexml.exceptions import DatasetStructureError
 
 class ParserDispatcher:
