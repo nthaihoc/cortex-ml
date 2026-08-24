@@ -38,6 +38,7 @@ dev = [
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
     "mkdocs-material",
+    "mkdocs-minify-plugin",
 ]
 
 all = [
