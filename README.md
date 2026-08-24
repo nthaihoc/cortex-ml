@@ -42,6 +42,3 @@ Run the test suite using `pytest`:
 ```bash
 uv run pytest
 ```
-
----
-*Note: This is a temporary overview. Comprehensive documentation for the entire system will be provided in the `docs/` directory as the platform evolves.*
