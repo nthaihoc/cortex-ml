@@ -1,142 +1,143 @@
 ---
 title: Data Flow
-description: End-to-end data flow through the IDP Platform pipeline.
+description: How a catalog-info.yaml file goes from disk to the screen, step by step.
 ---
 
-# :material-transit-connection-variant: Data Flow
+# :material-pipe: Data Flow
 
-## :material-file-upload-outline: Document Ingest Flow
-
-When a `catalog-info.yaml` file is discovered or updated, it flows through a strict pipeline:
-
-```mermaid
-flowchart LR
-    A[/"catalog-info.yaml\nbytes"/] --> B["HardenedYamlParser\n.parse()"]
-    B -->|dict| C["CatalogValidationEngine\n.validate()"]
-    C -->|schema issues| D{blocking\nissues?}
-    D -->|Yes| E["record_failure()\n→ DraftEntity"]
-    D -->|No| F["BackstageEntityNormalizer\n.normalize()"]
-    F -->|Entity| G["BackstageRelationProjector\n.project()"]
-    G -->|relations + issues| H{valid?}
-    H -->|No| E
-    H -->|Yes| I["CatalogWorkspace\n_entities + _relations"]
-    I --> J["snapshot()"]
-```
+This page shows exactly how data moves through the system — from a `catalog-info.yaml` file on your disk to the topology graph in your browser or editor.
 
 ---
 
-## :material-step-forward: Stage Details
+## Browser Data Flow
 
-### Stage 1: YAML Parsing — `HardenedYamlParser`
-
-**Input:** `bytes`
-**Output:** `dict[str, object]`
-
-The parser applies a **strict YAML 1.2 JSON-compatible subset**:
-
-- Rejects YAML aliases (circular reference prevention)
-- Rejects non-string mapping keys
-- Rejects duplicate mapping keys
-- Rejects timestamps as bare values (must be quoted strings)
-- Rejects NaN/Infinity floating-point values
-- Rejects multi-document YAML files (must have exactly one document)
-- Requires the root to be a mapping, not a sequence or scalar
-
-**Error codes:** `YAML_INVALID_UTF8`, `YAML_SYNTAX_ERROR`, `YAML_MULTIPLE_DOCUMENTS`, `YAML_ROOT_NOT_MAPPING`, `YAML_ALIAS_UNSUPPORTED`, `YAML_NON_STRING_KEY`, `YAML_DUPLICATE_KEY`, `YAML_TAG_UNSUPPORTED`, `YAML_TIMESTAMP_UNSUPPORTED`, `YAML_NON_FINITE_NUMBER`
-
----
-
-### Stage 2: Schema Validation — `CatalogValidationEngine`
-
-**Input:** `dict[str, object]`
-**Output:** list of `ValidationIssue`
-
-Detects whether the descriptor is **VSF IDP v2** (`specVersion: vsf-idp.io/v2`) or **Backstage** format, then applies the appropriate schema rules.
-
-=== "VSF IDP v2"
-
-    | Field | Rule |
-    |-------|------|
-    | `specVersion` | Must be exactly `"vsf-idp.io/v2"` |
-    | `metadata.namespace` | Required, matches `^[a-z][a-z0-9-]*$` |
-    | `metadata.system` | Required, matches `^[a-z][a-z0-9-]*$` |
-    | `metadata.domain` | Required, ≤ 128 printable chars |
-    | `spec.id` | Required, matches `^[a-z][a-z0-9-]*$` |
-    | `spec.name` | Required, no control characters |
-    | `spec.type` | One of 13 supported types (service, gateway, worker, …) |
-    | `spec.owners.members` | At least one member; at least one `techlead` role |
-    | `spec.owners.members[*].user` | Must be `*@vinsmartfuture.tech` email |
-    | `spec.review.branch` | Required for `service` and `gateway` types |
-    | `spec.topology[*]` | Each item must have `ref`; optional `protocol`, `reason` |
-
-=== "Backstage"
-
-    | Field | Rule |
-    |-------|------|
-    | `apiVersion` | Required, non-blank string |
-    | `kind` | Required, non-blank string |
-    | `metadata` | Required object |
-    | `metadata.name` | Required, non-blank string |
-    | `spec` | If present, must be an object |
-
----
-
-### Stage 3: Normalization — `BackstageEntityNormalizer`
-
-**Input:** `dict[str, object]`
-**Output:** `Entity` (Pydantic model)
-
-- Computes the canonical `EntityReference` (`kind:namespace/name`)
-- Normalizes all reference strings in `spec` to canonical form
-- Strips internal fields before caching the descriptor
-
----
-
-### Stage 4: Relation Projection — `BackstageRelationProjector`
-
-**Input:** `Entity`
-**Output:** `ProjectionResult(relations, issues)`
-
-Projects declared spec fields into typed `Relation` objects:
-
-| Spec Field | Relation Type | Target Kind |
-|-----------|--------------|-------------|
-| `spec.system` | `partOf` | `system` |
-| `spec.domain` | `partOf` | `domain` |
-| `spec.parent` | `partOf` | `group` |
-| `spec.dependsOn[]` | `dependsOn` | `component` |
-| `spec.providesApis[]` | `providesApi` | `api` |
-| `spec.consumesApis[]` | `consumesApi` | `api` |
-| `spec.publishesTo[]` | `publishesTo` | `event` |
-| `spec.consumesFrom[]` | `consumesFrom` | `event` |
-| `spec.topology[].ref` (VSF v2) | type from prefix | varies |
-
----
-
-## :material-broadcast: SSE Event Flow
+When you use the browser viewer, data flows through the **HTTP stack**:
 
 ```mermaid
 sequenceDiagram
-    participant W as FileWatcher
-    participant R as LocalCatalogRuntime
-    participant F as CatalogChangeFeed
-    participant C as Browser Client
+    participant Disk as 📄 Disk
+    participant FS as Filesystem Adapter
+    participant CW as CatalogWorkspace
+    participant API as FastAPI Server
+    participant Browser as ⚛️ React Viewer
 
-    C->>R: GET /api/v1/catalog/events
-    R->>C: 200 OK (text/event-stream open)
-    W->>R: file changed
-    W->>R: workspace.upsert_document(...)
-    R->>F: publish(CatalogChangeNotification)
-    F->>C: SSE data: {"revision": N, "changed_source_uris": [...]}
-    C->>R: GET /api/v1/catalog/topology?root=...
-    R->>C: focused topology JSON
+    Note over Disk, Browser: Startup
+    FS->>Disk: Discover catalog-info.yaml files
+    Disk-->>FS: File list + content
+    FS->>CW: upsert_document() for each file
+    CW->>CW: Parse → Normalize → Validate → Store
+
+    Note over Disk, Browser: Browser opens
+    Browser->>API: GET /api/v1/catalog/topology?root=...
+    API->>CW: focused_topology()
+    CW-->>API: FocusedTopology (nodes + relations)
+    API-->>Browser: JSON response
+    Browser->>Browser: Render graph with ReactFlow
+
+    Note over Disk, Browser: File saved on disk
+    FS->>Disk: Detect change (watchfiles)
+    FS->>CW: upsert_document() with new content
+    CW->>CW: Re-validate, update state
+    API-->>Browser: SSE event: revision changed
+    Browser->>API: Re-fetch topology
+    API-->>Browser: Updated JSON
 ```
 
 ---
 
-## :material-link: Further Reading
+## VS Code Data Flow
 
-- [Ingest Pipeline Deep Dive](../backend/ingest-pipeline.md)
-- [Validation Engine](../backend/validation.md)
-- [SSE Events API](../api/events.md)
-- [YAML 1.2 Specification](https://yaml.org/spec/1.2.2/)
+When you use the VS Code extension, data flows through the **LSP stack**:
+
+```mermaid
+sequenceDiagram
+    participant Disk as 📄 Disk
+    participant Service as CatalogLanguageService
+    participant CW as CatalogWorkspace
+    participant LSP as LSP Server (pygls)
+    participant VSCode as 💻 VS Code
+
+    Note over Disk, VSCode: Extension starts
+    VSCode->>LSP: initialize (workspace folders)
+    LSP->>Service: initialize()
+    Service->>Disk: Discover catalog-info.yaml files
+    Service->>CW: upsert_document() for each file
+
+    Note over Disk, VSCode: User opens a file
+    VSCode->>LSP: textDocument/didOpen
+    LSP->>Service: did_open()
+    Service->>CW: upsert_document()
+    CW->>CW: Parse → Normalize → Validate
+    Service-->>LSP: Diagnostics
+    LSP-->>VSCode: publishDiagnostics
+
+    Note over Disk, VSCode: User types (unsaved changes)
+    VSCode->>LSP: textDocument/didChange
+    LSP->>Service: did_change()
+    Service->>Service: Wait 300ms (debounce)
+    Service->>CW: upsert_document() with buffer content
+    CW->>CW: Re-validate
+    Service-->>LSP: Updated diagnostics
+    LSP-->>VSCode: publishDiagnostics + revisionChanged
+
+    Note over Disk, VSCode: User requests topology
+    VSCode->>LSP: catalog/topologyForDocument
+    LSP->>Service: topology_for_document()
+    Service->>CW: focused_topology_for_document()
+    CW-->>Service: FocusedTopology
+    Service-->>LSP: Topology + diagnostics
+    LSP-->>VSCode: JSON response
+    VSCode->>VSCode: Render in webview
+```
+
+---
+
+## Document Processing Pipeline
+
+Every time a document enters the system (from disk or editor), it goes through the same pipeline:
+
+```mermaid
+flowchart TD
+    INPUT["Raw bytes from file or editor"] --> PARSE["1. Parse YAML\n(HardenedYamlParser)"]
+    PARSE -->|Parse error| FAIL["Record failure\n→ Draft or Stale"]
+    PARSE -->|OK| VALIDATE["2. Validate Schema\n(CatalogValidationEngine)"]
+    VALIDATE -->|Blocking errors| FAIL
+    VALIDATE -->|OK| NORMALIZE["3. Normalize Entity\n(BackstageEntityNormalizer)"]
+    NORMALIZE -->|Error| FAIL
+    NORMALIZE -->|OK| PROJECT["4. Project Relations\n(BackstageRelationProjector)"]
+    PROJECT --> RESOLVE["5. Resolve Identity\n(Authority + Conflict detection)"]
+    RESOLVE --> STORE["6. Store in Snapshot\n(Increment revision)"]
+
+```
+
+### What happens at each step:
+
+| Step | Module | Input | Output |
+|------|--------|-------|--------|
+| 1. Parse | `HardenedYamlParser` | Raw bytes | Python dict (or parse error) |
+| 2. Validate | `CatalogValidationEngine` | Python dict | `ValidationOutcome` with issues |
+| 3. Normalize | `BackstageEntityNormalizer` | Python dict | Typed `Entity` with canonical ref |
+| 4. Project | `BackstageRelationProjector` | `Entity` | List of `Relation` objects |
+| 5. Resolve | `CatalogWorkspace` | `Entity` + ref | Update candidate map, detect conflicts |
+| 6. Store | `CatalogWorkspace` | Everything | Increment revision counter |
+
+---
+
+## What Happens When a File Changes
+
+When the file watcher detects a change to a `catalog-info.yaml` file:
+
+1. **Debounce** — Wait 300 ms in case more changes are coming
+2. **Read** — Read the file content from disk
+3. **Process** — Run the full pipeline above (parse → validate → normalize → project → resolve)
+4. **Notify** — Publish a `CatalogChangeNotification` with the new revision and affected URIs
+5. **SSE** — The HTTP API sends the notification to any connected browser via Server-Sent Events
+6. **LSP** — The Language Server sends a `catalog/revisionChanged` notification to VS Code
+
+---
+
+## Further Reading
+
+- [CatalogWorkspace](../backend/catalog-workspace.md) — How the core module processes documents
+- [Ingest Pipeline](../backend/ingest-pipeline.md) — Details of parsing, normalization, and projection
+- [State Management](state.md) — How entities, drafts, and conflicts are tracked

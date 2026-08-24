@@ -1,87 +1,52 @@
 ---
-title: Backend Tests
-description: Python backend test suite for the IDP Platform catalog engine.
+title: Backend Testing
+description: Running and writing tests for the Python backend.
 ---
 
-# :material-language-python: Backend Tests
+# :material-language-python: Backend Testing
 
-The backend test suite uses **pytest** and covers the entire catalog pipeline from YAML parsing through topology traversal.
+The backend uses `pytest` for unit and integration testing.
+
+**Location:** `backend/tests/`
 
 ---
 
-## :material-run: Running Tests
+## Running Tests
+
+Activate your virtual environment, then run:
 
 ```bash
-cd backend
+cd idp-platform/backend
+source .venv/bin/activate
+
+# Run all tests
 python -m pytest
 
-# With coverage
-python -m pytest --cov=app --cov-report=term-missing
+# Run with coverage report
+python -m pytest --cov=app
 
-# Specific test file
-python -m pytest tests/test_workspace.py -v
+# Run only validation tests
+python -m pytest tests/test_validators/
 ```
 
 ---
 
-## :material-folder: Test Organization
+## Test Structure
 
-| Test File | What It Tests |
-|-----------|--------------|
-| `tests/test_workspace.py` | Core `CatalogWorkspace` behaviors |
-| `tests/test_ingest.py` | YAML parser + normalizer + relation projector |
-| `tests/test_validation.py` | `CatalogValidationEngine` schema rules |
-| `tests/test_local_catalog.py` | HTTP API, runtime, file watcher |
-| `tests/test_language_server.py` | LSP lifecycle and custom methods |
+- `tests/test_ingest/` — Tests the hardened parser and normalizer (verifies bad YAML is caught)
+- `tests/test_validators/` — Tests the validation engine (checks all 22 diagnostic codes)
+- `tests/test_workspace/` — Tests the `CatalogWorkspace` state machine (conflict resolution, topology extraction)
+- `tests/test_api/` — Uses `TestClient` to test the FastAPI endpoints
+- `tests/test_lsp/` — Uses a mocked language client to test LSP standard methods
 
 ---
 
-## :material-check-all: Coverage Categories
+## The "Bad YAML" Philosophy
 
-### Core Workspace
+A significant portion of the ingest tests verify that the system gracefully handles malicious or malformed YAML. We explicitly test:
+- Billion-laughs attacks (anchors/aliases)
+- Non-string keys
+- Deeply nested structures
+- Invalid UTF-8 bytes
 
-- Upsert and remove documents
-- Duplicate identity (conflict detection)
-- Last-valid state on invalid update
-- Draft state on never-valid document
-- Focused topology traversal (one-hop, all directions)
-- Incremental indexing (no re-parse of unchanged files)
-- Save burst deduplication
-
-### YAML Parsing
-
-- All security constraint violations
-- Multi-document rejection
-- Alias/anchor rejection
-- Duplicate key rejection
-- Timestamp bare value rejection
-
-### Validation Engine
-
-- VSF IDP v2: all required field checks
-- VSF IDP v2: owner email + role validation
-- VSF IDP v2: review gate for service/gateway
-- Backstage: minimal field checks
-- Blocking vs. non-blocking issue classification
-
-### File Watcher
-
-- ADDED, MODIFIED, DELETED, MOVED events
-- Debounce (burst save coalescing)
-- Safety filtering (symlinks, hidden dirs)
-- Batch normalization
-
-### HTTP API
-
-- All endpoint happy paths
-- Error cases (422, 404, 409, 413)
-- SSE event delivery
-- Source update with version guard
-
----
-
-## :material-link: Further Reading
-
-- [Acceptance Coverage](acceptance.md)
-- [pytest Documentation](https://docs.pytest.org/)
-- [CatalogWorkspace](../backend/catalog-workspace.md)
+When writing new features, always include a test case for malformed input.

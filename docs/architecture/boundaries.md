@@ -1,120 +1,106 @@
 ---
 title: Module Boundaries
-description: Boundary rules and constraints governing each component of the IDP Platform.
+description: Rules about what each component is allowed to do and what it must not do.
 ---
 
-# :material-fence: Module Boundaries
+# :material-wall: Module Boundaries
 
-Each component in the IDP Platform has well-defined responsibilities and explicit constraints. These boundaries are enforced by the architecture, not by runtime checks alone.
-
----
-
-## :material-folder-outline: Filesystem Adapter
-
-**Module:** `backend/app/local_catalog/filesystem.py`
-
-| Constraint | Detail |
-|------------|--------|
-| **Target files** | Only files named exactly `catalog-info.yaml` |
-| **Depth** | Unlimited recursive traversal beneath `CATALOG_ROOT` |
-| **Excluded directories** | Hidden dirs (`.`-prefixed), `node_modules`, `__pycache__`, `.venv` |
-| **Excluded paths** | Symlinks and junctions are never followed |
-| **File size limit** | Files > 1 MB are skipped with `CATALOG_DESCRIPTOR_TOO_LARGE` diagnostic |
+Each component in the IDP Platform has clear rules about what it can and cannot do. These rules prevent bugs and keep the codebase easy to understand.
 
 ---
 
-## :material-http: HTTP Adapter
+## The Core Rule
 
-**Module:** `backend/app/local_catalog/api.py`
+!!! important "Python owns all catalog logic"
+    All validation, normalization, identity resolution, and relation projection happens in Python. TypeScript components (frontend, VS Code extension) **must never** re-implement any of these rules.
 
-| Constraint | Detail |
-|------------|--------|
-| **Bind address** | `127.0.0.1` only — loopback, never 0.0.0.0 |
-| **CORS** | Only the configured Vite origin (`http://localhost:5173`) |
-| **Methods** | `GET` (read-only) and `PUT` (source update only) |
-| **Authentication** | None — loopback-only by design |
-| **Source writes** | Limited to discovered `catalog-info.yaml` files |
-| **Directory traversal** | Prevented by strict path resolution and `relative_to()` check |
-| **Concurrency guard** | SHA-256 `expected_version` for optimistic locking on PUT |
-| **Size limit** | PUT requests > 1 MB return `413` |
+This means:
+
+- ✅ TypeScript can display data it receives from Python
+- ✅ TypeScript can format, filter, and search data for display
+- ❌ TypeScript must **never** validate a descriptor
+- ❌ TypeScript must **never** compute an entity reference
+- ❌ TypeScript must **never** decide if a relation is healthy or broken
 
 ---
 
-## :material-language-python: Language Server
+## Component Boundary Rules
 
-**Module:** `backend/app/catalog_language_server/`
+### CatalogWorkspace (`backend/app/catalog_workspace/`)
 
-| Constraint | Detail |
-|------------|--------|
-| **Transport** | `stdio` only — no network port |
-| **Scope** | One `CatalogScope` per language server instance |
-| **Document types** | Only files named `catalog-info.yaml` within workspace folders |
-| **Unsaved overlays** | Applied after 300 ms debounce; superseded versions are discarded |
-| **Depth** | Fixed at `depth=1` for topology requests |
-| **Folder management** | Responds to `workspace/didChangeWorkspaceFolders` dynamically |
+| Allowed | Not Allowed |
+|---------|-------------|
+| Parse, normalize, validate descriptors | Read files from disk directly |
+| Track entities, relations, conflicts, drafts | Know about HTTP, FastAPI, or REST |
+| Compute focused topology | Know about LSP protocol |
+| Generate diagnostics | Know about file paths or OS details |
+| Manage revision numbers | Send notifications to clients |
 
----
+The CatalogWorkspace receives raw bytes and produces structured data. It does not know where the bytes come from (filesystem, HTTP, editor buffer).
 
-## :material-microsoft-visual-studio-code: VS Code Extension
+### Local Catalog Runtime (`backend/app/local_catalog/`)
 
-**Module:** `vscode-extension/src/`
+| Allowed | Not Allowed |
+|---------|-------------|
+| Discover `catalog-info.yaml` files on disk | Validate descriptor content |
+| Watch for filesystem changes | Normalize entity references |
+| Pass file content to CatalogWorkspace | Compute relations |
+| Serve HTTP API endpoints | Know about VS Code or LSP |
+| Publish SSE change notifications | Modify CatalogWorkspace internals |
 
-| Constraint | Detail |
-|------------|--------|
-| **Catalog rules** | Extension does **not** implement any catalog validation rules |
-| **Active editor follow** | Updates focus when active editor changes, unless "pinned" |
-| **Pin state** | User-controlled; prevents automatic focus changes |
-| **Request cancellation** | Superseded in-flight topology requests are cancelled |
-| **Message validation** | Webview messages are validated before processing |
-| **Trusted workspaces** | Extension does **not** support untrusted workspace mode |
+### Language Server (`backend/app/catalog_language_server/`)
 
----
+| Allowed | Not Allowed |
+|---------|-------------|
+| Handle LSP protocol messages | Validate descriptor content |
+| Pass editor buffer to CatalogWorkspace | Normalize entity references |
+| Convert diagnostics to LSP format | Serve HTTP endpoints |
+| Respond to topology requests | Access the filesystem directly |
+| Debounce unsaved changes | Know about FastAPI or REST |
 
-## :material-react: React Frontend
+### Frontend (`frontend/src/`)
 
-**Module:** `frontend/src/`
+| Allowed | Not Allowed |
+|---------|-------------|
+| Display topology graph using ReactFlow | Validate descriptors |
+| Fetch data from the HTTP API | Compute entity references |
+| Search entities by name | Re-implement validation logic |
+| Show health/freshness visual states | Modify catalog state |
 
-| Constraint | Detail |
-|------------|--------|
-| **Catalog rules** | Frontend does **not** implement catalog validation rules |
-| **Graph scope** | Only mounts nodes returned by the focused topology response |
-| **Search** | Can use the full catalog snapshot index |
-| **Navigation** | Click a related node to make it the new focused root |
-| **Real-time** | SSE-driven refetch; no semantic delta application |
+### VS Code Extension (`vscode-extension/src/`)
 
----
-
-## :material-brain: CatalogWorkspace
-
-**Module:** `backend/app/catalog_workspace/`
-
-| Constraint | Detail |
-|------------|--------|
-| **Storage** | Purely in-memory; no persistence |
-| **Concurrency** | Single-threaded; callers are responsible for serialization |
-| **Traversal depth** | Fixed at 1 hop (enforced in `focused_topology()`) |
-| **Authority** | If two documents claim the same canonical reference → conflict; neither wins |
-| **Invariants** | A document with no valid snapshot is a "draft"; a valid-then-invalid document remains as "stale/last-valid" |
+| Allowed | Not Allowed |
+|---------|-------------|
+| Start/stop the Language Server | Validate descriptors |
+| Show LSP diagnostics in the editor | Parse YAML files |
+| Display topology in a webview panel | Compute relations |
+| Respond to VS Code commands | Access the HTTP API |
 
 ---
 
-## :material-transfer: Naming Conventions Across Boundaries
+## Dependency Direction
 
-| Boundary | Convention | Example |
-|----------|-----------|---------|
-| Python internal | `snake_case` | `entity_ref`, `source_uri` |
-| HTTP API (`openapi.yaml`) | `snake_case` | `entity_count`, `relative_path` |
-| LSP custom methods | `camelCase` | `catalogRevision`, `changedDocumentUri` |
-| Webview protocol | `camelCase` | `displayName`, `relationType` |
+Dependencies always point **inward** — from the outer layers toward the core:
 
-!!! info "Explicit mappers"
-    `service.py` in the language server explicitly maps Python `snake_case` fields to `camelCase` for the LSP/extension boundary. Contract fixtures in `contracts/examples/` test these translations.
+```mermaid
+flowchart LR
+    REACT["React Frontend"] --> API["FastAPI"]
+    VSCODE["VS Code Extension"] --> LSP["Language Server"]
+    API --> CW["CatalogWorkspace"]
+    LSP --> CW
+    CW --> INGEST["Ingest Pipeline"]
+    CW --> VALID["Validation Engine"]
+    INGEST --> DOMAIN["Domain Models"]
+    VALID --> DOMAIN
+
+```
+
+!!! warning "No reverse dependencies"
+    The core modules (`catalog_workspace`, `ingest`, `validators`, `domain`) must **never** import from the adapter or presentation layers. If you see `from app.local_catalog import ...` inside `workspace.py`, that is a bug.
 
 ---
 
-## :material-link: Further Reading
+## Further Reading
 
-- [Architecture Overview](index.md)
-- [OpenAPI Specification](../api/endpoints.md)
-- [Language Server Protocol](../lsp/protocol.md)
-- [Security in FastAPI](https://fastapi.tiangolo.com/tutorial/security/)
+- [System Overview](overview.md) — All components and the repository structure
+- [Data Flow](data-flow.md) — How data moves through the layers

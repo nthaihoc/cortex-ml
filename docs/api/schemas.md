@@ -5,73 +5,29 @@ description: JSON schema reference for all data types used in the HTTP API.
 
 # :material-code-json: Data Schemas
 
-All schemas are defined in [`openapi/openapi.yaml`](https://github.com/truongabc-group1/idp/blob/main/idp-platform/openapi/openapi.yaml).
+This page defines the JSON schemas used in the HTTP API responses.
 
 ---
 
-## :material-identifier: Core Value Types
+## CatalogEntity
 
-### `Health`
-
-```json
-{ "type": "string", "enum": ["healthy", "warning", "error"] }
-```
-
-| Value | Meaning |
-|-------|---------|
-| `"healthy"` | Entity/relation is fully resolved and valid |
-| `"warning"` | Entity/relation has a non-blocking issue (e.g., missing target) |
-| `"error"` | Entity/relation has a blocking issue or is in conflict |
-
-### `Freshness`
-
-```json
-{ "type": "string", "enum": ["current", "stale"] }
-```
-
-| Value | Meaning |
-|-------|---------|
-| `"current"` | Represents the most recently validated version |
-| `"stale"` | Represents the last-valid state; current content is invalid |
-
-### `TopologyDirection`
-
-```json
-{ "type": "string", "enum": ["incoming", "outgoing", "both"] }
-```
-
----
-
-## :material-map-marker: `DocumentProvenance`
-
-Tracks the origin of any catalog artifact back to its source file and field.
-
-```json
-{
-  "source_uri": "file:///absolute/path/to/catalog-info.yaml",
-  "relative_path": "my-service/catalog-info.yaml",
-  "document_version": "sha256hexstring",
-  "field_path": "spec.owners.members"
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `source_uri` | `string (uri)` | Absolute file URI |
-| `relative_path` | `string` | Path relative to Catalog Root |
-| `document_version` | `string \| null` | Content-derived version identifier |
-| `field_path` | `string \| null` | Dot-notation path to the specific field |
-
----
-
-## :material-cube-outline: `CatalogEntity`
+A fully resolved catalog entity. Found in the `/api/v1/catalog/snapshot` response.
 
 ```json
 {
   "reference": "component:platform/payment-gateway",
   "display_name": "Payment Gateway Service",
-  "descriptor": { "specVersion": "vsf-idp.io/v2", "..." : "..." },
-  "provenance": { "..." : "..." },
+  "descriptor": { 
+    "specVersion": "vsf-idp.io/v2",
+    "metadata": { "..." : "..." },
+    "spec": { "..." : "..." }
+  },
+  "provenance": {
+    "source_uri": "file:///path/to/catalog-info.yaml",
+    "relative_path": "payment-gateway/catalog-info.yaml",
+    "document_version": "a3f4b2c1...",
+    "field_path": null
+  },
   "health": "healthy",
   "freshness": "current"
 }
@@ -79,16 +35,18 @@ Tracks the origin of any catalog artifact back to its source file and field.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `reference` | `string` | Canonical entity reference |
-| `display_name` | `string` | Human-readable display name |
-| `descriptor` | `object` | The full normalized descriptor content |
-| `provenance` | `DocumentProvenance` | Source file information |
-| `health` | `Health` | Current health state |
-| `freshness` | `Freshness` | Current/stale status |
+| `reference` | `string` | The canonical identity of the entity |
+| `display_name` | `string` | The display name (from `spec.name` or `metadata.title`) |
+| `descriptor` | `object` | The raw descriptor data after parsing |
+| `provenance` | `object` | Where this entity came from (see below) |
+| `health` | `"healthy"`, `"warning"`, or `"error"` | Highest severity diagnostic on this entity |
+| `freshness` | `"current"` or `"stale"` | `"stale"` means the file was edited and is now invalid, but we are showing the last valid state |
 
 ---
 
-## :material-relation-many-to-many: `CatalogRelation`
+## CatalogRelation
+
+A connection between two entities.
 
 ```json
 {
@@ -106,107 +64,123 @@ Tracks the origin of any catalog artifact back to its source file and field.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | `string` | Source entity reference |
-| `target` | `string` | Target entity reference |
-| `relation_type` | `string` | One of the 7 relation types |
-| `provenance` | `DocumentProvenance` | Declaring file and field |
-| `health` | `Health` | Relation health |
-| `freshness` | `Freshness` | Current/stale status |
-| `provisional` | `boolean` | True if source is invalid/conflicted |
-| `protocol` | `string \| null` | Optional transport protocol |
-| `reason` | `string \| null` | Optional human-readable reason |
-
-### Relation Types
-
-| Value | Meaning |
-|-------|---------|
-| `"partOf"` | Entity belongs to a system, domain, or group |
-| `"dependsOn"` | Entity depends on another component/resource |
-| `"providesApi"` | Entity provides this API |
-| `"consumesApi"` | Entity consumes this API |
-| `"publishesTo"` | Entity publishes to this event |
-| `"consumesFrom"` | Entity consumes from this event |
-| `"contains"` | Entity contains this module or function |
+| `source` | `string` | Canonical reference of the source entity |
+| `target` | `string` | Canonical reference of the target entity |
+| `relation_type` | `string` | One of: `partOf`, `dependsOn`, `providesApi`, `consumesApi`, `publishesTo`, `consumesFrom`, `contains` |
+| `protocol` | `string` or `null` | Optional protocol string |
+| `reason` | `string` or `null` | Optional reason string |
+| `provisional` | `boolean` | Always `false` (reserved for future use) |
 
 ---
 
-## :material-stethoscope: `CatalogDiagnostic`
+## DocumentProvenance
+
+Describes exactly where data came from in a source file. Used for entities, relations, and diagnostics.
 
 ```json
 {
-  "code": "REFERENCE_TARGET_NOT_FOUND",
-  "severity": "warning",
-  "blocking": false,
-  "message": "The declared relation target is not currently resolved",
+  "source_uri": "file:///path/to/catalog-info.yaml",
+  "relative_path": "payment-gateway/catalog-info.yaml",
+  "document_version": "a3f4b2c1...",
+  "field_path": "spec.topology[0].ref"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source_uri` | `string` | Absolute `file://` URI to the file |
+| `relative_path` | `string` | Path relative to the `CATALOG_ROOT` |
+| `document_version` | `string` or `null` | Content hash (SHA-256) of the file when parsed |
+| `field_path` | `string` or `null` | JSON path to the specific field (e.g., `spec.owners`) |
+
+---
+
+## CatalogDiagnostic
+
+A validation error or warning.
+
+```json
+{
+  "code": "SCHEMA_FIELD_REQUIRED",
+  "severity": "error",
+  "blocking": true,
+  "message": "spec.owners.members requires at least one techlead",
   "provenance": { "..." : "..." },
-  "entity_ref": "component:platform/payment-gateway",
-  "target_ref": "component:platform/missing-service",
-  "suggested_action": "Add a descriptor for the target entity",
+  "entity_ref": null,
+  "target_ref": null,
+  "suggested_action": null,
   "details": null
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `code` | `string` | Stable diagnostic code |
-| `severity` | `"error" \| "warning"` | Severity level |
-| `blocking` | `boolean` | True means entity cannot be resolved |
-| `message` | `string` | Human-readable diagnostic message |
-| `provenance` | `DocumentProvenance` | File and field location |
-| `entity_ref` | `string \| null` | Affected entity reference |
-| `target_ref` | `string \| null` | Referenced (missing) target |
-| `suggested_action` | `string \| null` | Remediation hint |
-| `details` | `object \| null` | Structured additional details |
+| `code` | `string` | Stable error code (see [Diagnostic Codes](../diagnostics/codes.md)) |
+| `severity` | `"error"` or `"warning"` | How serious the problem is |
+| `blocking` | `boolean` | If `true`, the entity is not registered (becomes draft/stale) |
+| `message` | `string` | Human-readable explanation |
+| `entity_ref` | `string` or `null` | Entity reference this issue belongs to (if resolved) |
+| `target_ref` | `string` or `null` | Target reference (if it's a relation issue like `REFERENCE_TARGET_NOT_FOUND`) |
+| `suggested_action` | `string` or `null` | How to fix the problem |
+| `details` | `object` or `null` | Extra structured data about the issue |
 
 ---
 
-## :material-content-copy: `CatalogSnapshot`
+## IdentityConflict
 
-The full catalog state at a single revision.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `revision` | `integer` | Monotonic revision counter |
-| `entities` | `object` | Map of reference → `CatalogEntity` |
-| `relations` | `array` | All resolved `CatalogRelation` objects |
-| `conflicts` | `object` | Map of reference → `IdentityConflict` |
-| `drafts` | `object` | Map of URI → `DraftEntity` |
-| `diagnostics` | `array` | All `CatalogDiagnostic` objects |
-
----
-
-## :material-alert: `IdentityConflict`
+Represents two or more files fighting over the same entity reference.
 
 ```json
 {
   "reference": "component:platform/payment-gateway",
   "sources": [
-    { "source_uri": "file:///a/catalog-info.yaml", "relative_path": "a/catalog-info.yaml", "..." : "..." },
-    { "source_uri": "file:///b/catalog-info.yaml", "relative_path": "b/catalog-info.yaml", "..." : "..." }
+    {
+      "source_uri": "file:///path/a/catalog-info.yaml",
+      "relative_path": "a/catalog-info.yaml",
+      "document_version": "...",
+      "field_path": null
+    },
+    {
+      "source_uri": "file:///path/b/catalog-info.yaml",
+      "relative_path": "b/catalog-info.yaml",
+      "document_version": "...",
+      "field_path": null
+    }
   ]
 }
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `reference` | `string` | The canonical reference being claimed |
+| `sources` | `array` | List of `DocumentProvenance` pointing to the conflicting files |
+
 ---
 
-## :material-pencil: `DraftEntity`
+## DraftEntity
 
-Represents a document that has never successfully validated.
+A file that has blocking errors and was never valid before.
+
+```json
+{
+  "source_uri": "file:///path/to/broken.yaml",
+  "display_name": "unknown",
+  "provenance": { "..." : "..." },
+  "entity_ref": "component:platform/broken-service",
+  "health": "error",
+  "freshness": "current",
+  "has_snapshot": false
+}
+```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source_uri` | `string (uri)` | Source file URI |
-| `display_name` | `string` | Display name (from relative path if no name parsed) |
-| `provenance` | `DocumentProvenance` | Source file information |
-| `entity_ref` | `string \| null` | Partially-resolved canonical reference if available |
-| `health` | `Health` | Always `"error"` for drafts |
-| `freshness` | `Freshness` | Freshness state |
-| `has_snapshot` | `boolean` | True if a last-valid snapshot exists |
+| `entity_ref` | `string` or `null` | May be `null` if the error prevented computing the reference |
+| `has_snapshot` | `boolean` | Always `false` for drafts |
 
 ---
 
-## :material-link: Further Reading
+## Further Reading
 
-- [Endpoints Reference](endpoints.md)
-- [Diagnostic Codes](../diagnostics/codes.md)
-- [OpenAPI Specification](https://github.com/truongabc-group1/idp/blob/main/idp-platform/openapi/openapi.yaml)
+- [Endpoints Reference](endpoints.md) — Where these schemas are used
+- [OpenAPI Specification](https://github.com/truongabc-group1/idp/blob/main/idp-platform/openapi/openapi.yaml) — The full OpenAPI 3.1 contract

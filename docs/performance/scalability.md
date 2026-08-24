@@ -1,61 +1,57 @@
 ---
-title: Scalability
-description: Design decisions that keep the IDP Platform viewer fast at scale.
+title: Scalability Limits
+description: Known limits and edge cases at extreme scale.
 ---
 
-# :material-scale-balance: Scalability Notes
+# :material-chart-line-variant: Scalability Limits
 
----
-
-## :material-lightbulb-outline: Key Design Decisions
-
-### 1. One-Hop Fixed Depth
-
-The topology viewer is **intentionally fixed at depth=1**. A single focused query returns at most:
-
-- 1 root node
-- N immediate incoming/outgoing neighbors
-- Their connecting relations
-
-For a linear chain of 5,000 entities, the focused view mounts exactly **3 nodes**, independent of catalog size.
-
-Navigation continues by clicking related nodes — each becomes the new focused root for the next one-hop query.
-
-### 2. Separate Search and Graph Indexes
-
-- **Search** operates over the full in-memory snapshot (`/api/v1/catalog/snapshot`)
-- **Graph rendering** uses only the focused topology response (`/api/v1/catalog/topology`)
-
-This means the React Flow canvas never mounts the full catalog, regardless of catalog size.
-
-### 3. In-Memory Only
-
-All catalog data is held in Python dictionaries. No ORM, no query planner, no I/O on the critical path for focused topology queries.
-
-### 4. Revision-Gated Refetch
-
-SSE events carry a revision number. The browser compares the received revision with its current state and refetches only when necessary. No full-catalog pushes.
-
-### 5. Per-File Debounce
-
-File changes are debounced per-file key (300 ms). Rapid burst saves (e.g., auto-format on save) apply only the final version once.
+The platform is optimized for local developer workspaces. While it can handle thousands of files effortlessly, there are hard limits designed to protect your machine's memory and CPU.
 
 ---
 
-## :material-alert-outline: Known Scalability Limits
+## Hard Limits
 
-| Limit | Threshold | Notes |
-|-------|----------|-------|
-| Startup time | ~5,000 entities | Linear scan; no lazy loading |
-| In-memory footprint | ~5,000 entities | All descriptors held in RAM |
-| File size | 1 MB per descriptor | Enforced by `DEFAULT_MAX_DESCRIPTOR_SIZE_BYTES` |
-| Topology depth | Fixed at 1 hop | Architectural constraint |
-| Concurrent users | 1 (loopback only) | Local development tool, not a production server |
+| Limit | Value | What happens if exceeded? |
+|-------|-------|---------------------------|
+| **Maximum File Size** | 1 MB | File is skipped. Generates a `CATALOG_DESCRIPTOR_TOO_LARGE` diagnostic. |
+| **YAML Nesting Depth** | (Python recursion limit) | Fails with `YAML_SYNTAX_ERROR`. Normal descriptors are shallow, so this requires a malicious file. |
+| **Topology Depth** | 1 | Hardcoded. The API only supports 1-hop focused topology. Requests for `depth=2` fail with HTTP 422. |
 
 ---
 
-## :material-link: Further Reading
+## Memory Consumption
 
-- [Benchmarks](benchmarks.md)
-- [Architecture Overview](../architecture/index.md)
-- [Performance Documentation (original)](../../docs/performance.md)
+The entire catalog is kept in RAM in Python.
+
+- **Rule of thumb:** ~5 MB of RAM per 1,000 entities.
+- A 10,000 entity catalog uses roughly 50-70 MB of RAM (negligible on modern hardware).
+- However, the `GET /api/v1/catalog/snapshot` JSON payload can become quite large (~25 MB for 10,000 entities), which causes a temporary CPU/Memory spike during JSON serialization.
+
+---
+
+## Filesystem Watcher Limits
+
+The `watchfiles` library relies on operating system events (fsevents on macOS, inotify on Linux).
+
+**Linux `inotify` limit:**
+If you have millions of files in your `CATALOG_ROOT` (for example, if you accidentally point it at your entire home directory or a massive `node_modules` folder), Linux may run out of inotify watchers.
+
+**Symptoms:**
+- The backend crashes on startup with an OS error about file watchers.
+- Changes stop triggering updates.
+
+**Fix:**
+Point `CATALOG_ROOT` to a more specific directory, or increase the system limit:
+```bash
+echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+*(The backend tries to skip `node_modules` automatically, but highly nested custom folders can still hit this limit).*
+
+---
+
+## Team Size / Concurrent Users
+
+The local catalog runtime binds to `127.0.0.1:8000` and uses the standard Uvicorn ASGI server. It is designed for **single-user local access only**.
+
+It is **not** designed to be deployed to the cloud or shared across a team. If you want a shared portal for your whole company, use the main Backstage instance. This tool is strictly for your local VS Code environment.

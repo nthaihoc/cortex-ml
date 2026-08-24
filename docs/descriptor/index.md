@@ -1,69 +1,75 @@
 ---
 title: Descriptor Format
-description: Guide to authoring catalog-info.yaml descriptor files for the IDP Platform.
+description: How to write catalog-info.yaml files for the IDP Platform.
 ---
 
 # :material-file-code-outline: Descriptor Format
 
-All catalog entities are described using `catalog-info.yaml` files placed anywhere within the Catalog Root directory.
+The IDP Platform reads `catalog-info.yaml` files to build the catalog. These files describe your services, APIs, and how they connect to each other.
+
+The platform supports **two formats**:
+
+| Format | Identifier | Status |
+|--------|-----------|--------|
+| **VSF IDP v2** | `specVersion: vsf-idp.io/v2` | ✅ Primary — use this for new services |
+| **Backstage** | `apiVersion: backstage.io/v1alpha1` | ✅ Supported — for migration from Backstage |
+
+Both formats can be used in the same workspace. The validation engine handles each format with its own rules.
 
 ---
 
-## :material-layers: Two Supported Formats
-
-The IDP Platform supports two descriptor formats:
-
 <div class="grid cards" markdown>
 
--   :material-star:{ .lg .middle } **VSF IDP v2** *(Primary)*
+-   :material-star:{ .lg .middle } **VSF IDP v2**
 
-    ---
-
-    `specVersion: vsf-idp.io/v2` — the primary authoring contract for all new services.
-
-    Includes ownership, review gates, and structured topology declarations.
+    The primary format for all new services. Includes ownership, review gates, and typed topology.
 
     [:octicons-arrow-right-24: VSF IDP v2 Reference](vsf-v2.md)
 
--   :material-history:{ .lg .middle } **Backstage** *(Legacy / Migration)*
+-   :material-swap-horizontal:{ .lg .middle } **Backstage Compatibility**
 
-    ---
+    How Backstage-format descriptors work alongside VSF IDP v2.
 
-    Standard Backstage `apiVersion` + `kind` format for components migrating from a Backstage catalog.
+    [:octicons-arrow-right-24: Backstage Guide](backstage.md)
 
-    Readable alongside VSF v2 in the same workspace.
+-   :material-key:{ .lg .middle } **Identity Rules**
 
-    [:octicons-arrow-right-24: Backstage Compatibility](backstage.md)
+    How entity identity is computed and what happens with conflicts.
+
+    [:octicons-arrow-right-24: Identity Rules](identity.md)
+
+-   :material-graph:{ .lg .middle } **Topology Fields**
+
+    How to declare connections between services.
+
+    [:octicons-arrow-right-24: Topology Fields](topology.md)
 
 </div>
 
 ---
 
-## :material-folder-search: Discovery Rules
+## Quick Example
 
-The platform discovers descriptors by:
+Here is a minimal valid VSF IDP v2 descriptor:
 
-1. Recursively scanning the `CATALOG_ROOT` directory
-2. Including only files named **exactly** `catalog-info.yaml`
-3. Excluding hidden directories (names starting with `.`)
-4. Excluding common generated directories: `node_modules`, `__pycache__`, `.venv`
-5. Never following symlinks or junctions
+```yaml
+specVersion: vsf-idp.io/v2
 
-!!! info "One entity per file"
-    Each `catalog-info.yaml` file must contain exactly **one** YAML document with exactly **one** entity descriptor. Multi-document YAML (separated by `---`) is rejected.
+metadata:
+  namespace: platform
+  system: idp-core
+  domain: Platform Engineering
 
----
+spec:
+  id: my-service
+  name: My Service
+  type: service
+  owners:
+    members:
+      - user: alice@vinsmartfuture.tech
+        role: techlead
+  review:
+    branch: main
+```
 
-## :material-format-list-bulleted: YAML Constraints
-
-The parser enforces a **strict YAML 1.2 JSON-compatible subset**:
-
-| ✅ Allowed | ❌ Not Allowed |
-|-----------|--------------|
-| String scalars | YAML anchors/aliases |
-| Boolean (`true`/`false`) | Implicit type coercions (e.g., `yes` → `true`) |
-| Integer and float numbers | NaN and Infinity |
-| `null` | YAML timestamps as bare values |
-| Mappings (objects) | Non-string mapping keys |
-| Sequences (arrays) | Duplicate mapping keys |
-| Nested structures | Multi-document files |
+This creates an entity with the canonical reference `component:platform/my-service`.

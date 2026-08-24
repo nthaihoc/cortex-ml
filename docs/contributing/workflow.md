@@ -1,75 +1,69 @@
 ---
 title: Development Workflow
-description: Branching, pull request, and development workflow for IDP Platform contributors.
+description: Branching strategy and pull request process.
 ---
 
-# :material-source-branch: Development Workflow
+# :material-git: Development Workflow
 
----
-
-## :material-git: Branching Strategy
-
-| Branch | Purpose |
-|--------|---------|
-| `main` | Stable release branch |
-| `feature/<name>` | New features |
-| `fix/<name>` | Bug fixes |
-| `docs/<name>` | Documentation updates |
+The IDP Platform follows a standard GitHub pull request workflow.
 
 ---
 
-## :material-hammer-wrench: Local Development Loop
+## Branching Strategy
 
-### 1. Create a feature branch
+- **`main`**: The default branch. It is always deployable and stable.
+- **`dev`**: The active development branch. Feature branches are merged here first for integration testing.
+
+When you start a new feature or bugfix, create your branch from `dev`:
 
 ```bash
-git checkout -b feature/my-feature main
+git checkout dev
+git pull
+git checkout -b feature/my-new-thing
 ```
 
-### 2. Make your changes
-
-Follow the [Code Conventions](conventions.md) and ensure all existing tests pass.
-
-### 3. Add tests
-
-- **Backend:** Add pytest tests in `backend/tests/`
-- **Frontend:** Add Vitest tests in `frontend/src/`
-- **Extension:** Add Vitest tests in `vscode-extension/src/`
-
-### 4. Run the full test suite
-
-```bash
-# Backend
-cd backend && python -m pytest
-
-# Frontend
-cd frontend && npm test && npm run build
-
-# Extension
-cd vscode-extension && npm test && npm run check && npm run build
-```
-
-### 5. Open a pull request
-
-- Target `main`
-- Describe the change and reference any relevant issues
-- Ensure all CI checks pass
+Branch naming conventions:
+- `feature/*` for new features
+- `fix/*` for bug fixes
+- `docs/*` for documentation changes
+- `chore/*` for refactoring or dependency updates
 
 ---
 
-## :material-checklist: Pre-merge Checklist
+## Creating a Pull Request
 
-- [ ] All existing tests pass
-- [ ] New tests added for new behavior
-- [ ] Documentation updated if public API changed
-- [ ] Diagnostic codes (if new) added to [Diagnostic Codes](../diagnostics/codes.md)
-- [ ] `openapi/openapi.yaml` updated if HTTP API changed
-- [ ] Contract examples in `contracts/examples/` regenerated if shapes changed
+When your code is ready:
+
+1. Push your branch to GitHub.
+2. Open a Pull Request targeting the **`dev`** branch (not `main`).
+3. Fill out the PR template.
+4. Ensure all CI checks pass (tests, linting, formatting).
+
+### The CI Pipeline
+
+Every PR runs GitHub Actions that verify:
+- Backend: `pytest` and `ruff`
+- Frontend: `vitest`, `eslint`, and `prettier`
+- VS Code: `npm test` and `eslint`
+- Contract Tests: Ensuring backend and frontend agree on API schemas
+
+Your PR must pass all CI checks before it can be merged.
 
 ---
 
-## :material-link: Further Reading
+## Code Review
 
-- [Code Conventions](conventions.md)
-- [Testing Overview](../testing/index.md)
-- [Architecture Boundaries](../architecture/boundaries.md)
+All PRs require at least one approval from a repository maintainer before they can be merged.
+
+During review, maintainers will look closely at:
+- **Module Boundaries:** Did you leak Python catalog logic into TypeScript?
+- **Safety:** Does the parser still reject bad YAML?
+- **Performance:** Does this change the `O(1)` or `O(N)` characteristics of the topology graph?
+
+---
+
+## Merging and Releases
+
+1. Features are merged into `dev` via "Squash and Merge".
+2. Periodically, `dev` is merged into `main` via a Release PR.
+3. Merging to `main` triggers the release pipeline (building the VS Code extension VSIX and publishing to the registry).

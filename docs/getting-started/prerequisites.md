@@ -1,104 +1,160 @@
 ---
 title: Prerequisites
-description: Software requirements for running the IDP Platform Local Catalog Topology.
+description: Software you need before installing the IDP Platform.
 ---
 
 # :material-clipboard-check-outline: Prerequisites
 
-Before cloning the repository and running the platform, ensure the following tools are installed on your machine.
+Before you begin, make sure you have the following software installed on your computer.
 
 ---
 
-## :material-language-python: Python
+## Required Software
 
-**Required version: 3.12 or newer**
+| Software | Minimum Version | What it is used for |
+|----------|----------------|---------------------|
+| :material-language-python: **Python** | 3.12 or newer | Runs the backend server, validation engine, and LSP |
+| :material-nodejs: **Node.js** | 20 or newer | Runs the frontend dev server and builds the VS Code extension |
+| :material-git: **Git** | Any recent version | Clones the repository |
 
-The backend and language server are written in Python. Python 3.12 is the minimum because the codebase uses:
+!!! note "No database or Docker needed"
+    The IDP Platform runs entirely on your machine without any database, container runtime, or cloud service. After installing the dependencies above, **no internet connection is needed**.
 
-- `StrEnum` (PEP 663)
-- `slots=True` on `dataclass` (PEP 557 update, available from 3.10, stable from 3.12)
-- Modern type union syntax (`X | Y`) across all modules
+---
+
+## How to Check Your Versions
+
+Open a terminal and run these commands to check if you have the right versions:
 
 === "macOS / Linux"
 
     ```bash
-    # Check your version
+    # Check Python version (must be 3.12 or newer)
     python3 --version
 
-    # Install via pyenv (recommended)
-    pyenv install 3.12
-    pyenv global 3.12
+    # Check Node.js version (must be 20 or newer)
+    node --version
+
+    # Check npm version (comes with Node.js)
+    npm --version
+
+    # Check Git version
+    git --version
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # Check Python version (must be 3.12 or newer)
+    py -3 --version
+
+    # Check Node.js version (must be 20 or newer)
+    node --version
+
+    # Check npm version (comes with Node.js)
+    npm --version
+
+    # Check Git version
+    git --version
+    ```
+
+??? example "Example output"
+    ```
+    $ python3 --version
+    Python 3.12.4
+
+    $ node --version
+    v20.18.0
+
+    $ npm --version
+    10.8.2
+
+    $ git --version
+    git version 2.45.2
+    ```
+
+---
+
+## How to Install Missing Software
+
+### Python 3.12+
+
+=== "macOS"
+
+    Download from [python.org](https://www.python.org/downloads/) or use Homebrew:
+
+    ```bash
+    brew install python@3.12
+    ```
+
+=== "Linux (Ubuntu/Debian)"
+
+    ```bash
+    sudo apt update
+    sudo apt install python3.12 python3.12-venv python3-pip
     ```
 
 === "Windows"
 
-    ```powershell
-    # Check your version
-    py --version
+    Download the installer from [python.org](https://www.python.org/downloads/).
 
-    # Download from python.org
-    # https://www.python.org/downloads/
-    py -3.12 --version
-    ```
+    !!! warning "Check 'Add to PATH'"
+        During installation, make sure to check the **"Add Python to PATH"** checkbox. This lets you run Python from any terminal.
 
-!!! note "Alternative: `uv`"
-    The repository ships `uv.lock` files in both `backend/` and `cli/`. You can use [uv](https://docs.astral.sh/uv/) instead of `pip` for faster dependency resolution:
-    ```bash
-    uv sync  # inside backend/ or cli/
-    ```
+### Node.js 20+
 
----
+=== "macOS"
 
-## :material-nodejs: Node.js
-
-**Required version: 20 or newer**
-
-The frontend (React + Vite) and VS Code extension require Node.js. Node.js 20 LTS is recommended for stability.
-
-=== "macOS / Linux"
+    Download from [nodejs.org](https://nodejs.org/) or use Homebrew:
 
     ```bash
-    # Check version
-    node --version
+    brew install node@20
+    ```
 
-    # Install via nvm (recommended)
-    nvm install 20
-    nvm use 20
+=== "Linux (Ubuntu/Debian)"
+
+    ```bash
+    # Using NodeSource
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt install -y nodejs
     ```
 
 === "Windows"
 
-    ```powershell
-    node --version
-    # Download from https://nodejs.org/
+    Download the installer from [nodejs.org](https://nodejs.org/).
+
+### Git
+
+=== "macOS"
+
+    Git comes with Xcode Command Line Tools:
+
+    ```bash
+    xcode-select --install
     ```
 
----
+=== "Linux (Ubuntu/Debian)"
 
-## :material-microsoft-visual-studio-code: VS Code *(for the extension)*
+    ```bash
+    sudo apt install git
+    ```
 
-**Required version: 1.91 or newer** — only needed if you want the VS Code Extension development flow.
+=== "Windows"
 
-The extension uses LSP client APIs available since VS Code 1.91.
-
-Download VS Code from [code.visualstudio.com](https://code.visualstudio.com/).
-
----
-
-## :material-table-check: Summary
-
-| Tool | Minimum Version | Required For |
-|------|-----------------|--------------|
-| Python | **3.12** | Backend, Language Server, CLI |
-| Node.js | **20** | Frontend, VS Code Extension |
-| VS Code | **1.91** | Extension flow only |
+    Download from [git-scm.com](https://git-scm.com/download/win).
 
 ---
 
-## :material-link: Further Reading
+## Optional: VS Code
 
-- [Python Official Downloads](https://www.python.org/downloads/)
-- [Node.js Official Downloads](https://nodejs.org/en/download/)
-- [pyenv — Python version manager](https://github.com/pyenv/pyenv)
-- [nvm — Node version manager](https://github.com/nvm-sh/nvm)
-- [uv — Fast Python package manager](https://docs.astral.sh/uv/)
+If you want to use the VS Code extension for in-editor diagnostics and topology preview:
+
+| Software | Version | Download |
+|----------|---------|----------|
+| **VS Code** | 1.91 or newer | [code.visualstudio.com](https://code.visualstudio.com/) |
+
+---
+
+## Next Step
+
+Once you have Python, Node.js, and Git installed, continue to [Installation](installation.md).

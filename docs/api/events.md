@@ -3,92 +3,82 @@ title: Server-Sent Events
 description: Real-time catalog change notification stream via SSE.
 ---
 
-# :material-broadcast: Server-Sent Events
+# :material-broadcast: Server-Sent Events (SSE)
 
-The `/api/v1/catalog/events` endpoint provides a **Server-Sent Events (SSE)** stream that pushes catalog revision change metadata to connected clients in real time.
+The IDP Platform provides a real-time event stream that notifies you when catalog files change on disk. This is how the browser viewer updates automatically when you save a file.
 
 ---
 
-## :material-connection: Connecting to the Stream
+## Connecting to the Stream
 
-```javascript
-const events = new EventSource('http://127.0.0.1:8000/api/v1/catalog/events');
+Connect to the `/api/v1/catalog/events` endpoint. The server will keep the connection open and stream events using the `text/event-stream` format.
 
-events.onmessage = (event) => {
-  const notification = JSON.parse(event.data);
-  console.log('Catalog revision:', notification.revision);
-  console.log('Changed:', notification.changed_source_uris);
-  console.log('Removed:', notification.removed_source_uris);
-};
+**Example Request:**
+
+```
+GET /api/v1/catalog/events HTTP/1.1
+Accept: text/event-stream
 ```
 
 ---
 
-## :material-code-json: `CatalogChangeEvent` Schema
+## Event Format
 
-Each SSE `data` frame contains a JSON object:
+Every time a file is added, modified, or deleted, the server sends a JSON payload in the `data` field of an event.
 
-```json
-{
-  "revision": 43,
-  "changed_source_uris": [
-    "file:///path/to/my-service/catalog-info.yaml"
-  ],
-  "removed_source_uris": []
-}
+```
+data: {"revision":43,"changed_source_uris":["file:///path/to/catalog-info.yaml"],"removed_source_uris":[]}
+
+data: {"revision":44,"changed_source_uris":[],"removed_source_uris":["file:///old/catalog-info.yaml"]}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `revision` | `integer` | The new catalog revision after this change |
-| `changed_source_uris` | `array[uri]` | File URIs that were added or updated |
-| `removed_source_uris` | `array[uri]` | File URIs that were deleted |
+| `revision` | `integer` | The new catalog revision number (increases monotonically) |
+| `changed_source_uris` | `array` of strings | `file://` URIs of files that were added or updated |
+| `removed_source_uris` | `array` of strings | `file://` URIs of files that were deleted |
 
 ---
 
-## :material-refresh: Recommended Client Pattern
+## How to Use the Stream
 
-On receiving any SSE event, clients should **refetch** the current catalog state. The event payload is **change metadata only** — not a semantic delta that can be applied to a previous snapshot.
+The event payload **only contains metadata**, not the actual entity data. This is an intentional design choice to keep the stream lightweight.
+
+When your client receives an event, it should **refetch** the data it needs using the new `revision` number to ensure it has the latest state.
+
+### Example Workflow
+
+1. Client connects to `/api/v1/catalog/events`
+2. Client fetches the initial state: `GET /api/v1/catalog/topology?root=...`
+3. User saves a `catalog-info.yaml` file
+4. Server sends SSE event: `{"revision": 45, ...}`
+5. Client receives the event
+6. Client fetches the updated state: `GET /api/v1/catalog/topology?root=...`
+
+---
+
+## Browser Example (JavaScript)
 
 ```javascript
-events.onmessage = async (event) => {
-  const { revision } = JSON.parse(event.data);
+const eventSource = new EventSource("http://127.0.0.1:8000/api/v1/catalog/events");
 
-  // Refetch the current focused topology or full snapshot
-  const topology = await fetch(
-    `/api/v1/catalog/topology?root=${currentRoot}`
-  ).then(r => r.json());
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log(`Catalog updated to revision ${data.revision}`);
+    
+    // The data changed, so fetch the new topology
+    fetchTopology();
+};
 
-  renderTopology(topology);
+eventSource.onerror = (error) => {
+    console.error("Lost connection to SSE stream. Reconnecting...", error);
+    // EventSource automatically tries to reconnect
 };
 ```
 
 ---
 
-## :material-server-network: How the Stream Works
+## Further Reading
 
-1. The `CatalogFileWatcher` detects a filesystem change
-2. After 300 ms debounce, it calls `workspace.upsert_document()` or `remove_document()`
-3. If the catalog revision changes, it calls `runtime.changes.publish(notification)`
-4. `CatalogChangeFeed` delivers the notification to all active SSE subscribers
-5. Each subscriber serializes the notification as a JSON `data` frame
-
-The `CatalogChangeFeed` is a simple pub/sub backed by `asyncio.Queue` per subscriber, created and cleaned up per SSE connection.
-
----
-
-## :material-alert-outline: Notes
-
-!!! info "Cache-Control"
-    The SSE response includes `Cache-Control: no-cache` to prevent intermediate caches from buffering the stream.
-
-!!! warning "Connection lifecycle"
-    When the browser tab is closed or the SSE connection drops, the server-side stream generator terminates automatically. Reconnect by creating a new `EventSource` instance.
-
----
-
-## :material-link: Further Reading
-
-- [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
-- [WHATWG SSE Specification](https://html.spec.whatwg.org/multipage/server-sent-events.html)
-- [FastAPI StreamingResponse](https://fastapi.tiangolo.com/advanced/custom-response/#streamingresponse)
+- [API Endpoints Reference](endpoints.md)
+- [File Watcher](../backend/file-watcher.md) — How the backend detects file changes

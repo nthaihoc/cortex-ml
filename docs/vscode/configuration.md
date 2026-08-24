@@ -1,74 +1,72 @@
 ---
-title: VS Code Extension Configuration
+title: Extension Configuration
 description: Settings for the Local Catalog Topology VS Code extension.
 ---
 
-# :material-cog: VS Code Extension Configuration
+# :material-cog-outline: Extension Configuration
 
-Configure the extension through VS Code Settings (`settings.json` or the Settings UI).
+The extension has two configuration settings that you can change in VS Code's Settings JSON or the Settings UI.
+
+Go to **File > Preferences > Settings** (or ++ctrl+comma++) and search for "Catalog Topology".
 
 ---
 
-## :material-format-list-bulleted: Available Settings
+## `catalogTopology.pythonPath`
 
-### `catalogTopology.pythonPath`
+The path to the Python executable used to run the Language Server.
 
-| Property | Value |
-|----------|-------|
-| Type | `string` |
-| Default | `""` (empty) |
+| Type | Default |
+|------|---------|
+| `string` | `""` (Empty) |
 
-The path to the Python executable used to start the language server.
+### How it resolves when empty
 
-**Resolution order when empty:**
+If you leave this empty (the default), the extension tries to find Python in this order:
 
-1. Sibling `idp-platform/backend/.venv/bin/python` (or `.venv\Scripts\python.exe` on Windows) if present
-2. `python` on the system `PATH`
+1. Looks for a virtual environment (`.venv/bin/python` or `.\.venv\Scripts\python.exe`) inside the sibling `backend/` folder (assuming you have the full `idp-platform` repository open).
+2. Falls back to the global `python3` or `python` command on your system PATH.
+
+### When to set it manually
+
+You should set this if:
+- You are not opening the `idp-platform` repository, but just a folder of catalog files.
+- Your Python environment is installed somewhere else (like `~/.pyenv/` or a Conda environment).
 
 **Example:**
-
 ```json
 {
-  "catalogTopology.pythonPath": "/home/user/workspace/idp/idp-platform/backend/.venv/bin/python"
+  "catalogTopology.pythonPath": "/usr/local/bin/python3.12"
 }
 ```
 
 ---
 
-### `catalogTopology.serverWorkingDirectory`
+## `catalogTopology.serverWorkingDirectory`
 
-| Property | Value |
-|----------|-------|
-| Type | `string` |
-| Default | `""` (empty) |
+The working directory for the Language Server process.
 
-Working directory for the language server process.
+| Type | Default |
+|------|---------|
+| `string` | `""` (Empty) |
 
-**Default when empty:** Sibling `idp-platform/backend/` folder.
+### How it resolves when empty
+
+If you leave this empty, the extension sets the working directory to the sibling `backend/` folder. This is required because the server is run as `python -m app.catalog_language_server`, which needs the `app/` directory to be in the Python path.
+
+### When to set it manually
+
+You must set this if you are using the extension outside of the `idp-platform` repository. Point it to the absolute path of the `idp-platform/backend/` directory on your machine.
 
 **Example:**
-
 ```json
 {
-  "catalogTopology.serverWorkingDirectory": "/home/user/workspace/idp/idp-platform/backend"
+  "catalogTopology.serverWorkingDirectory": "/Users/alice/projects/idp/idp-platform/backend"
 }
 ```
 
 ---
 
-## :material-file-cog: Complete `settings.json` Example
+## Further Reading
 
-```json
-{
-  "catalogTopology.pythonPath": "/home/user/workspace/idp/idp-platform/backend/.venv/bin/python",
-  "catalogTopology.serverWorkingDirectory": "/home/user/workspace/idp/idp-platform/backend"
-}
-```
-
----
-
-## :material-link: Further Reading
-
-- [Commands Reference](commands.md)
-- [VS Code User Settings](https://code.visualstudio.com/docs/getstarted/settings)
-- [Quick Start](../getting-started/quickstart.md#vs-code-extension-flow)
+- [Installation](installation.md)
+- [Language Server](../lsp/index.md)

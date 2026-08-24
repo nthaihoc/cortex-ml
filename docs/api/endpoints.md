@@ -5,9 +5,13 @@ description: Detailed request and response documentation for each HTTP API endpo
 
 # :material-api: Endpoints Reference
 
-## :material-text-box-outline: `GET /health` — Runtime Health {#get-health}
+All endpoints are served on `http://127.0.0.1:8000`.
 
-Returns the current runtime status and catalog statistics.
+---
+
+## `GET /health` — Runtime Health {#get-health}
+
+Returns the server status and catalog statistics.
 
 **Response `200 OK`:**
 
@@ -23,15 +27,15 @@ Returns the current runtime status and catalog statistics.
 | Field | Type | Description |
 |-------|------|-------------|
 | `status` | `"ok"` | Always `"ok"` when the server is running |
-| `revision` | `integer` | Monotonically increasing catalog revision |
+| `revision` | `integer` | Current catalog revision (increases with every change) |
 | `entity_count` | `integer` | Number of fully resolved entities |
 | `diagnostic_count` | `integer` | Total active diagnostics across all documents |
 
 ---
 
-## :material-text-box-outline: `GET /api/v1/catalog/snapshot` — Full Snapshot {#get-apiv1catalogsnapshot}
+## `GET /api/v1/catalog/snapshot` — Full Snapshot {#get-snapshot}
 
-Returns the complete in-memory catalog snapshot.
+Returns the complete in-memory catalog state: all entities, relations, conflicts, drafts, and diagnostics.
 
 **Response `200 OK`:**
 
@@ -42,18 +46,30 @@ Returns the complete in-memory catalog snapshot.
     "component:platform/payment-gateway": {
       "reference": "component:platform/payment-gateway",
       "display_name": "Payment Gateway Service",
-      "descriptor": { ... },
+      "descriptor": { "..." : "..." },
       "provenance": {
         "source_uri": "file:///path/to/catalog-info.yaml",
         "relative_path": "payment-gateway/catalog-info.yaml",
-        "document_version": "a3f4...",
+        "document_version": "a3f4b2c1...",
         "field_path": null
       },
       "health": "healthy",
       "freshness": "current"
     }
   },
-  "relations": [ ... ],
+  "relations": [
+    {
+      "source": "component:platform/payment-gateway",
+      "target": "component:platform/auth-service",
+      "relation_type": "dependsOn",
+      "provenance": { "..." : "..." },
+      "health": "healthy",
+      "freshness": "current",
+      "provisional": false,
+      "protocol": "gRPC",
+      "reason": "Token validation"
+    }
+  ],
   "conflicts": {},
   "drafts": {},
   "diagnostics": []
@@ -62,9 +78,9 @@ Returns the complete in-memory catalog snapshot.
 
 ---
 
-## :material-text-box-outline: `GET /api/v1/catalog/topology` — Focused Topology {#get-apiv1catalogtopology}
+## `GET /api/v1/catalog/topology` — Focused Topology {#get-topology}
 
-Returns a one-hop focused topology view centered on a given entity reference.
+Returns a one-hop focused topology view centered on a given entity.
 
 **Query Parameters:**
 
@@ -74,7 +90,7 @@ Returns a one-hop focused topology view centered on a given entity reference.
 | `direction` | `string` | — | `"both"` | `"incoming"`, `"outgoing"`, or `"both"` |
 | `depth` | `integer` | — | `1` | Must be exactly `1` |
 
-**Example Request:**
+**Example:**
 
 ```
 GET /api/v1/catalog/topology?root=component:platform/payment-gateway&direction=both
@@ -90,50 +106,29 @@ GET /api/v1/catalog/topology?root=component:platform/payment-gateway&direction=b
   "nodes": {
     "component:platform/payment-gateway": {
       "reference": "component:platform/payment-gateway",
-      "display_name": "Payment Gateway Service",
+      "display_name": "Payment Gateway",
       "state": "entity",
       "health": "healthy",
       "freshness": "current",
-      "provenance": { ... },
-      "conflict_sources": []
-    },
-    "component:platform/auth-service": {
-      "reference": "component:platform/auth-service",
-      "display_name": "Auth Service",
-      "state": "entity",
-      "health": "healthy",
-      "freshness": "current",
-      "provenance": { ... },
+      "provenance": { "..." : "..." },
       "conflict_sources": []
     }
   },
-  "relations": [
-    {
-      "source": "component:platform/payment-gateway",
-      "target": "component:platform/auth-service",
-      "relation_type": "dependsOn",
-      "provenance": { ... },
-      "health": "healthy",
-      "freshness": "current",
-      "provisional": false,
-      "protocol": "gRPC",
-      "reason": "Token validation"
-    }
-  ]
+  "relations": [ "..." ]
 }
 ```
 
-**Error Responses:**
+**Node states:** `entity` (valid), `unresolved` (target not found), `conflict` (duplicate identity), `draft` (never valid).
 
-| Code | Description |
-|------|-------------|
-| `422` | Invalid `root`, unsupported `direction`, or `depth` ≠ 1 |
+| Error | Description |
+|-------|-------------|
+| `422` | Invalid `root`, unsupported `direction`, or `depth ≠ 1` |
 
 ---
 
-## :material-text-box-outline: `GET /api/v1/catalog/diagnostics` — Diagnostics {#get-apiv1catalogdiagnostics}
+## `GET /api/v1/catalog/diagnostics` — All Diagnostics {#get-diagnostics}
 
-Returns all current diagnostics across all catalog documents.
+Returns all active diagnostics across all catalog documents.
 
 **Response `200 OK`:**
 
@@ -163,9 +158,9 @@ Returns all current diagnostics across all catalog documents.
 
 ---
 
-## :material-text-box-outline: `GET /api/v1/catalog/events` — SSE Stream {#get-apiv1catalogevents}
+## `GET /api/v1/catalog/events` — SSE Stream {#get-events}
 
-Streams catalog revision change notifications as Server-Sent Events.
+Streams catalog change notifications as Server-Sent Events. The connection stays open until the client disconnects.
 
 **Response `200 OK`** (content-type: `text/event-stream`):
 
@@ -175,14 +170,16 @@ data: {"revision":43,"changed_source_uris":["file:///path/to/catalog-info.yaml"]
 data: {"revision":44,"changed_source_uris":[],"removed_source_uris":["file:///old/catalog-info.yaml"]}
 ```
 
-!!! tip "Usage pattern"
-    On receiving an event, clients should **refetch** the current snapshot or focused topology using the latest revision. The event payload is metadata only, not a semantic delta.
+!!! tip "How to use SSE events"
+    When you receive an event, **refetch** the snapshot or topology endpoint to get the latest data. The event only tells you *that* something changed, not *what* changed.
+
+See [SSE Events](events.md) for more details.
 
 ---
 
-## :material-text-box-outline: `GET /api/v1/catalog/source` — Read Source {#get-apiv1catalogsource}
+## `GET /api/v1/catalog/source` — Read a Descriptor {#get-source}
 
-Reads the raw UTF-8 content of a discovered catalog descriptor.
+Reads the raw UTF-8 content of a discovered catalog descriptor file.
 
 **Query Parameters:**
 
@@ -201,14 +198,14 @@ Reads the raw UTF-8 content of a discovered catalog descriptor.
 }
 ```
 
-| Code | Description |
-|------|-------------|
+| Error | Description |
+|-------|-------------|
 | `404` | File not found, outside root, or is a symlink |
 | `422` | File is not valid UTF-8 |
 
 ---
 
-## :material-text-box-outline: `PUT /api/v1/catalog/source` — Update Source {#put-apiv1catalogsource}
+## `PUT /api/v1/catalog/source` — Update a Descriptor {#put-source}
 
 Atomically saves new content to a discovered catalog descriptor.
 
@@ -230,26 +227,23 @@ Atomically saves new content to a discovered catalog descriptor.
 | Field | Description |
 |-------|-------------|
 | `content` | New UTF-8 content to write |
-| `expected_version` | SHA-256 hash of current content (from prior GET) for optimistic locking |
+| `expected_version` | SHA-256 hash from the previous GET (for optimistic locking) |
 
-**Response `200 OK`:** Same as GET `/api/v1/catalog/source`.
+**Response `200 OK`:** Same format as GET `/api/v1/catalog/source`.
 
-**Error Responses:**
-
-| Code | Description |
-|------|-------------|
+| Error | Description |
+|-------|-------------|
 | `404` | File not found or not a discovered descriptor |
-| `409` | `expected_version` mismatch — file changed since last read |
+| `409` | `expected_version` mismatch — file changed since your last read |
 | `413` | Content exceeds 1 MB limit |
 
 !!! info "Atomic write"
-    The PUT endpoint writes to a temporary file and performs an atomic `os.replace()` to prevent partial writes from reaching the filesystem watcher.
+    The PUT endpoint writes to a temporary file first, then uses `os.replace()` to atomically swap the content. This prevents partial writes from reaching the file watcher.
 
 ---
 
-## :material-link: Further Reading
+## Further Reading
 
-- [Data Schemas](schemas.md)
-- [SSE Events](events.md)
-- [OpenAPI Specification](https://github.com/truongabc-group1/idp/blob/main/idp-platform/openapi/openapi.yaml)
-- [Optimistic Concurrency Control](https://en.wikipedia.org/wiki/Optimistic_concurrency_control)
+- [Data Schemas](schemas.md) — JSON type definitions
+- [SSE Events](events.md) — Real-time notifications
+- [OpenAPI Specification](https://github.com/truongabc-group1/idp/blob/main/idp-platform/openapi/openapi.yaml) — Full contract

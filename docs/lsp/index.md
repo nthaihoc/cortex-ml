@@ -1,23 +1,42 @@
 ---
-title: Language Server
-description: Python Language Server Protocol (LSP) implementation for catalog descriptor validation.
+title: Language Server (LSP)
+description: Python LSP server for VS Code integration.
 ---
 
-# :material-language-python: Language Server
+# :material-protocol: Language Server (LSP)
 
-The Python Language Server (`backend/app/catalog_language_server/`) provides live catalog validation diagnostics and topology preview directly inside VS Code via the Language Server Protocol (LSP).
+The backend provides a **Language Server** that communicates using the Language Server Protocol (LSP). This server powers the VS Code extension, providing real-time diagnostics and topology data as you type.
+
+**Location:** `backend/app/catalog_language_server/`
+
+---
+
+## Architecture
+
+The server uses the `pygls` library and runs over standard input/output (stdio).
+
+```mermaid
+flowchart LR
+    VSCODE["VS Code Extension\n(LSP Client)"] <-->|stdio| SERVER["Language Server\n(pygls)"]
+    SERVER <-->|API| CW["CatalogWorkspace\n(Core)"]
+    
+```
+
+The LSP server is a thin adapter over the `CatalogWorkspace`. It does not validate files itself — it passes file content to the workspace and converts the resulting diagnostics into LSP format.
+
+---
 
 <div class="grid cards" markdown>
 
--   :material-protocol:{ .lg .middle } **Protocol**
+-   :material-swap-horizontal:{ .lg .middle } **LSP Protocol Events**
 
-    Standard LSP lifecycle events and how the language service responds.
+    How the server handles standard LSP messages (open, change, close).
 
-    [:octicons-arrow-right-24: Protocol](protocol.md)
+    [:octicons-arrow-right-24: Standard Protocol](protocol.md)
 
--   :material-code-braces-box:{ .lg .middle } **Custom Methods**
+-   :material-call-made:{ .lg .middle } **Custom LSP Methods**
 
-    The `catalog/topologyForDocument` request and `catalog/revisionChanged` notification.
+    Custom methods added for the topology webview and live updates.
 
     [:octicons-arrow-right-24: Custom Methods](custom-methods.md)
 
@@ -25,30 +44,14 @@ The Python Language Server (`backend/app/catalog_language_server/`) provides liv
 
 ---
 
-## :material-console: Starting the Language Server
+## Running the Server
 
-The language server is started by the VS Code extension automatically:
+You normally don't run the LSP server directly — the VS Code extension starts it for you automatically.
+
+However, you can run it manually for testing:
 
 ```bash
 python -m app.catalog_language_server
 ```
 
-It communicates over **stdio** (stdin/stdout). No network ports are used.
-
----
-
-## :material-key-chain: Key Design Points
-
-1. **Same validation engine** — uses `CatalogWorkspace` + `CatalogValidationEngine`, the same as the HTTP runtime
-2. **Unsaved editor overlays** — in-memory document buffers shadow on-disk files
-3. **300 ms debounce** — avoids excessive re-validation during typing
-4. **Cross-folder catalog scope** — all VS Code workspace folders contribute to one `CatalogWorkspace`
-5. **Diagnostics push** — diagnostics are published via `textDocument/publishDiagnostics` notifications
-
----
-
-## :material-link: Further Reading
-
-- [Language Server Protocol Specification](https://microsoft.github.io/language-server-protocol/)
-- [pygls Documentation](https://pygls.readthedocs.io/)
-- [VS Code Extension](../vscode/index.md)
+Because it uses `stdio` (standard input/output), it will block your terminal, waiting for JSON-RPC messages. To stop it, press ++ctrl+c++.

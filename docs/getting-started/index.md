@@ -1,41 +1,62 @@
 ---
 title: Getting Started
-description: Prerequisites, installation, and first run for the IDP Platform Local Catalog Topology.
+description: Set up the IDP Platform on your machine and start browsing catalog topology.
 ---
 
-# :material-rocket-launch-outline: Getting Started
+# :material-play-circle-outline: Getting Started
 
-Welcome to the **IDP Platform — Local Catalog Topology** documentation. This section covers everything you need to go from zero to a fully running local catalog in minutes.
+Welcome! This section helps you install and run the IDP Platform on your machine.
+
+The IDP Platform has **three components** you can set up:
+
+```mermaid
+flowchart LR
+    subgraph REQUIRED["Required"]
+        B["🐍 Backend\n(Python server)"]
+        F["⚛️ Frontend\n(Browser viewer)"]
+    end
+    subgraph OPTIONAL["Optional"]
+        E["💻 VS Code Extension"]
+    end
+    B --> F
+    B -.-> E
+
+```
+
+| Component | What it does | Required? |
+|-----------|-------------|-----------|
+| **Backend** | Reads catalog files, validates them, serves API | ✅ Yes |
+| **Frontend** | Shows the topology graph in your browser | ✅ Yes |
+| **VS Code Extension** | Shows diagnostics and topology inside your editor | Optional |
+
+---
+
+## Where to Start
 
 <div class="grid cards" markdown>
 
--   :material-check-circle-outline: **Prerequisites**
+-   :material-clipboard-check-outline:{ .lg .middle } **1. Check Prerequisites**
 
-    Required software versions before you begin.
+    Make sure Python 3.12+ and Node.js 20+ are installed.
 
-    [:octicons-arrow-right-24: View prerequisites](prerequisites.md)
+    [:octicons-arrow-right-24: Prerequisites](prerequisites.md)
 
--   :material-download-circle-outline: **Installation**
+-   :material-download-circle-outline:{ .lg .middle } **2. Install**
 
-    Step-by-step setup for backend, frontend, and VS Code extension.
+    Clone the repo and install all dependencies step by step.
 
-    [:octicons-arrow-right-24: Installation guide](installation.md)
+    [:octicons-arrow-right-24: Installation](installation.md)
 
--   :material-play-circle-outline: **Quick Start**
+-   :material-rocket-launch-outline:{ .lg .middle } **3. Quick Start**
 
-    Go from fresh clone to running browser viewer in under 5 minutes.
+    Start the backend and frontend, then open the topology viewer.
 
     [:octicons-arrow-right-24: Quick Start](quickstart.md)
 
--   :material-cog-outline: **Configuration**
+-   :material-cog-outline:{ .lg .middle } **4. Configure**
 
-    Environment variables and customization options.
+    Change the catalog root, API port, and other settings.
 
     [:octicons-arrow-right-24: Configuration](configuration.md)
 
 </div>
-
----
-
-!!! tip "No external services required"
-    The platform is completely self-contained. **No database, no message queue, no container runtime, no remote repository, no authentication provider, and no internet connection** is required after initial dependency installation.

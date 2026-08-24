@@ -1,62 +1,61 @@
 ---
 title: Backend
-description: Overview of the Python backend components for the IDP Platform.
+description: Python backend components — the core of the IDP Platform.
 ---
 
 # :material-language-python: Backend
 
-The backend is a Python application that contains all catalog semantics. It is organized into self-contained modules with clear responsibilities.
+The backend is written in Python and contains all catalog logic. It has five main modules:
+
+```mermaid
+flowchart TD
+    subgraph BACKEND["Python Backend"]
+        CW["CatalogWorkspace\n(Core engine)"]
+        IP["Ingest Pipeline\n(Parse, normalize, project)"]
+        VE["Validation Engine\n(Schema + topology checks)"]
+        LC["Local Catalog Runtime\n(HTTP + file watcher)"]
+        LS["Language Server\n(LSP for VS Code)"]
+
+        LC --> CW
+        LS --> CW
+        CW --> IP
+        CW --> VE
+    end
+
+```
+
+---
 
 <div class="grid cards" markdown>
 
 -   :material-brain:{ .lg .middle } **CatalogWorkspace**
 
-    The deep module. All catalog parsing, validation, relation projection, conflict detection, and topology traversal.
+    The core module. All catalog state lives here.
 
     [:octicons-arrow-right-24: CatalogWorkspace](catalog-workspace.md)
 
 -   :material-pipe:{ .lg .middle } **Ingest Pipeline**
 
-    Three-stage pipeline: YAML parsing → normalization → relation projection.
+    YAML parsing, entity normalization, and relation projection.
 
     [:octicons-arrow-right-24: Ingest Pipeline](ingest-pipeline.md)
 
--   :material-check-circle-outline:{ .lg .middle } **Validation Engine**
+-   :material-shield-check:{ .lg .middle } **Validation Engine**
 
-    Schema and topology validation for both VSF IDP v2 and Backstage descriptors.
+    Schema validation for both VSF IDP v2 and Backstage formats.
 
     [:octicons-arrow-right-24: Validation Engine](validation.md)
 
--   :material-server:{ .lg .middle } **Local HTTP Runtime**
+-   :material-server:{ .lg .middle } **Local Catalog Runtime**
 
-    FastAPI application, loopback server, and filesystem discovery.
+    HTTP server (FastAPI) and filesystem discovery.
 
-    [:octicons-arrow-right-24: Local Catalog](local-catalog.md)
+    [:octicons-arrow-right-24: Local HTTP Runtime](local-catalog.md)
 
--   :material-file-eye-outline:{ .lg .middle } **File Watcher**
+-   :material-file-eye:{ .lg .middle } **File Watcher**
 
-    Watchfiles-based filesystem watcher with debounce and atomic event batching.
+    Detects changes to catalog files and updates the workspace.
 
     [:octicons-arrow-right-24: File Watcher](file-watcher.md)
 
 </div>
-
----
-
-## :material-console: Running the Backend
-
-```bash
-cd backend
-python -m app.local_catalog
-```
-
-This starts the FastAPI server at `http://127.0.0.1:8000` and begins watching `CATALOG_ROOT` for changes.
-
----
-
-## :material-test-tube: Running Tests
-
-```bash
-cd backend
-python -m pytest
-```

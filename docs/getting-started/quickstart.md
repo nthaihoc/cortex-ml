@@ -1,33 +1,25 @@
 ---
 title: Quick Start
-description: Go from fresh clone to a running topology viewer in under 5 minutes.
+description: Start the platform and see the topology viewer in under 5 minutes.
 ---
 
-# :material-play-circle-outline: Quick Start
+# :material-rocket-launch-outline: Quick Start
 
-This guide gets you from a fresh clone to a **live browser topology viewer** in under 5 minutes.
+This guide gets you from a fresh installation to a running topology viewer in a few minutes.
+
+!!! note "Before you start"
+    Make sure you have completed the [Installation](installation.md) steps first.
 
 ---
 
-## :material-monitor-dashboard: Browser Development Flow
+## Start the Backend Server
 
-### 1. Start the Backend
+The backend reads your `catalog-info.yaml` files, validates them, and serves the API.
 
-=== "macOS / Linux (pip)"
+=== "macOS / Linux"
 
     ```bash
     cd idp-platform/backend
-    python3.12 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt -r requirements-dev.txt
-    python -m app.local_catalog
-    ```
-
-=== "macOS / Linux (uv)"
-
-    ```bash
-    cd idp-platform/backend
-    uv sync
     source .venv/bin/activate
     python -m app.local_catalog
     ```
@@ -36,29 +28,33 @@ This guide gets you from a fresh clone to a **live browser topology viewer** in 
 
     ```powershell
     cd idp-platform\backend
-    py -3.12 -m venv .venv
-    .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
-    .\.venv\Scripts\python.exe -m app.local_catalog
+    .\.venv\Scripts\Activate.ps1
+    python -m app.local_catalog
     ```
 
-You should see output like:
+??? example "Expected output"
+    ```
+    INFO:     Loaded local catalog root=/.../catalog-info descriptors=12 entities=10
+              diagnostics=2 elapsed_ms=45.3
+    INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to stop)
+    ```
 
-```
-INFO:     Started server process [12345]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-```
+!!! success "Check it works"
+    Open [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) in your browser. You should see:
+    ```json
+    {"status": "ok", "revision": 12, "entity_count": 10, "diagnostic_count": 2}
+    ```
 
-### 2. Start the Frontend
+---
 
-Open a **second terminal**:
+## Start the Frontend Dev Server
+
+Open a **second terminal** (keep the backend running) and start the frontend:
 
 === "macOS / Linux"
 
     ```bash
     cd idp-platform/frontend
-    npm install
     npm run dev
     ```
 
@@ -66,95 +62,93 @@ Open a **second terminal**:
 
     ```powershell
     cd idp-platform\frontend
-    npm install
     npm run dev
     ```
 
-Vite will start a dev server and print:
+??? example "Expected output"
+    ```
+    VITE v7.x.x  ready in XXX ms
 
-```
-  VITE v7.x  ready in 300 ms
-
-  ➜  Local:   http://localhost:5173/
-  ➜  Network: use --host to expose
-```
-
-### 3. Open the Browser
-
-Navigate to **[http://127.0.0.1:5173](http://127.0.0.1:5173)**.
-
-!!! info "How it works"
-    Vite automatically proxies `/health` and `/api` requests to the backend at `127.0.0.1:8000`. Saved descriptor file changes instantly update the running catalog via the filesystem watcher and Server-Sent Events.
+    ➜  Local:   http://localhost:5173/
+    ➜  Network: use --host to expose
+    ```
 
 ---
 
-## :material-test-tube: Generate a Sample Catalog
+## Open the Topology Viewer
 
-If you don't have `catalog-info.yaml` files yet, generate a synthetic catalog:
+Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+
+You should see the topology viewer showing all discovered catalog entities as a graph. Click any node to focus on it and see its connections.
+
+!!! info "How it works"
+    The Vite dev server automatically proxies `/health` and `/api` requests to the backend at `http://127.0.0.1:8000`. You do not need to configure CORS or any other settings.
+
+---
+
+## Try Making a Change
+
+1. Open any `catalog-info.yaml` file in your editor (for example, `catalog-info/idp-developer-portal/catalog-info.yaml`)
+2. Make a small change (like editing the `description` field)
+3. Save the file
+4. Watch the browser — it updates automatically!
+
+The file watcher detects your change, re-validates the descriptor, and pushes an update through the SSE event stream.
+
+---
+
+## Generate Sample Data
+
+Want to test with more entities? Generate a synthetic catalog:
 
 === "macOS / Linux"
 
     ```bash
-    cd backend
-    python -m scripts.generate_catalog --count 20 --output ./.generated-catalog
-    CATALOG_ROOT=$(pwd)/.generated-catalog python -m app.local_catalog
+    cd idp-platform/backend
+    source .venv/bin/activate
+
+    # Generate 20 sample entities
+    python -m scripts.generate_catalog --count 20 --output .generated-catalog
+
+    # Start the backend with the generated catalog
+    CATALOG_ROOT=.generated-catalog python -m app.local_catalog
     ```
 
 === "Windows (PowerShell)"
 
     ```powershell
     cd idp-platform\backend
-    .\.venv\Scripts\python.exe -m scripts.generate_catalog --count 20 --output .\.generated-catalog
-    $env:CATALOG_ROOT=(Resolve-Path .\.generated-catalog)
-    .\.venv\Scripts\python.exe -m app.local_catalog
+    .\.venv\Scripts\Activate.ps1
+
+    # Generate 20 sample entities
+    python -m scripts.generate_catalog --count 20 --output .generated-catalog
+
+    # Start the backend with the generated catalog
+    $env:CATALOG_ROOT=".generated-catalog"
+    python -m app.local_catalog
     ```
 
-This creates 20 synthetic catalog entities with a chain topology perfect for exploring the viewer.
+---
+
+## Optional: Try the VS Code Extension
+
+If you installed the VS Code extension:
+
+1. Open the `idp` repository root folder in VS Code
+2. Press **F5** → select **Run Local Catalog Topology Extension**
+3. In the new Extension Development Host window, open a folder that contains `catalog-info.yaml` files
+4. Open a `catalog-info.yaml` file and run the command **Catalog: Open Topology Beside** (from the Command Palette: ++ctrl+shift+p++)
+
+You will see:
+
+- **Inline diagnostics** — validation errors and warnings appear as squiggly underlines
+- **Topology webview** — a graph panel shows the focused topology beside your editor
+- **Live updates** — unsaved changes are analyzed after ~300 ms and the topology updates in real time
 
 ---
 
-## :material-microsoft-visual-studio-code: VS Code Extension Flow
+## Next Steps
 
-### 1. Build the Extension
-
-```bash
-cd idp-platform/vscode-extension
-npm install
-npm run build
-```
-
-### 2. Launch the Extension Development Host
-
-1. Open the **`idp-platform` root folder** in VS Code
-2. Select the **"Run Local Catalog Topology Extension"** launch configuration
-3. Press **`F5`**
-
-A new VS Code Extension Development Host window opens.
-
-### 3. Use the Extension
-
-1. Open a folder containing `catalog-info.yaml` files in the Extension Development Host
-2. Focus a `catalog-info.yaml` file in the editor
-3. Run the command palette (`Ctrl+Shift+P`) → **"Catalog: Open Topology Beside"**
-
-!!! tip "Python Path"
-    If your backend virtual environment is not the default Python on your `PATH`, set `catalogTopology.pythonPath` in VS Code settings to point to the `.venv/bin/python` executable.
-
----
-
-## :material-check: What to Expect
-
-After a successful start:
-
-- **`/health`** returns `{"status": "ok", "revision": N, "entity_count": N, "diagnostic_count": N}`
-- **Browser** shows an interactive ReactFlow graph of entity topology
-- **VS Code** shows inline diagnostics and a side-by-side topology webview
-- **Saving** a `catalog-info.yaml` file automatically refreshes the graph within ~300 ms
-
----
-
-## :material-link: Further Reading
-
-- [Vite Dev Server](https://vite.dev/guide/)
-- [FastAPI Uvicorn](https://fastapi.tiangolo.com/deployment/manually/)
-- [VS Code Extension Development](https://code.visualstudio.com/api/get-started/your-first-extension)
+- [Configuration](configuration.md) — Change catalog root, API port, and other settings
+- [Architecture](../architecture/index.md) — Understand how the system works
+- [Descriptor Format](../descriptor/index.md) — Learn how to write catalog descriptors

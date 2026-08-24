@@ -1,98 +1,91 @@
 ---
 title: Backstage Compatibility
-description: Using Backstage-format descriptors alongside VSF IDP v2 in the same workspace.
+description: Using Backstage-format descriptors alongside VSF IDP v2.
 ---
 
-# :material-history: Backstage Compatibility
+# :material-swap-horizontal: Backstage Compatibility
 
-The IDP Platform **reads existing Backstage-format `catalog-info.yaml` files** without modification. Backstage descriptors are first-class citizens in the same workspace as VSF IDP v2 descriptors.
+The IDP Platform can read **Backstage-format** `catalog-info.yaml` files alongside VSF IDP v2 descriptors. This makes it easy to migrate from Backstage without rewriting all your files at once.
 
 ---
 
-## :material-file-document-outline: Backstage Descriptor Example
+## Backstage Format Example
 
 ```yaml
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: legacy-service
+  name: my-service
   namespace: default
-  title: Legacy Service
-  description: An existing Backstage component being migrated.
-  labels:
-    team: platform
-  annotations:
-    backstage.io/techdocs-ref: dir:.
-  tags:
-    - java
-    - legacy
+  title: My Service
+  description: A backend service.
 spec:
   type: service
-  lifecycle: production
-  owner: group:platform-team
-  system: system:payments
+  owner: team-alpha
+  system: core-platform
   dependsOn:
-    - component:auth-service
+    - component:default/auth-service
   providesApis:
-    - api:legacy-api
+    - api:default/my-api
 ```
 
 ---
 
-## :material-check-decagram: What Backstage Fields Are Supported
+## How the Two Formats Differ
 
-| Field | Supported | Notes |
-|-------|-----------|-------|
-| `apiVersion` | ✅ | Any non-blank string |
-| `kind` | ✅ | Any non-blank string (Component, API, System, Group, …) |
-| `metadata.name` | ✅ | Forms the entity name |
-| `metadata.namespace` | ✅ | Defaults to `"default"` if absent |
-| `metadata.title` | ✅ | Used as `display_name` |
-| `metadata.description` | ✅ | Preserved in descriptor |
-| `metadata.labels` | ✅ | Preserved as-is |
-| `metadata.annotations` | ✅ | Preserved as-is |
-| `metadata.tags` | ✅ | Preserved as-is |
-| `spec.type` | ✅ | Preserved in descriptor |
-| `spec.lifecycle` | ✅ | Preserved in descriptor |
-| `spec.owner` | ✅ | Normalized to canonical reference |
-| `spec.system` | ✅ | Normalized and projected as `partOf` |
-| `spec.domain` | ✅ | Normalized and projected as `partOf` |
-| `spec.parent` | ✅ | Normalized and projected as `partOf` |
-| `spec.dependsOn[]` | ✅ | Projected as `dependsOn` relations |
-| `spec.providesApis[]` | ✅ | Projected as `providesApi` relations |
-| `spec.consumesApis[]` | ✅ | Projected as `consumesApi` relations |
-| `spec.publishesTo[]` | ✅ | Projected as `publishesTo` relations |
-| `spec.consumesFrom[]` | ✅ | Projected as `consumesFrom` relations |
-| `spec.topology[]` | ✅ | VSF-style topology items |
-| `Location` kind | ⚠️ | Accepted but targets are not followed (warning diagnostic) |
+| Feature | VSF IDP v2 | Backstage |
+|---------|-----------|-----------|
+| Identifier | `specVersion: vsf-idp.io/v2` | `apiVersion: backstage.io/v1alpha1` |
+| Entity kind | Always `component` | Flexible: `Component`, `System`, `API`, etc. |
+| Identity | `component:{namespace}/{spec.id}` | `{kind}:{namespace}/{name}` |
+| Namespace | `metadata.namespace` | `metadata.namespace` (default: `default`) |
+| Name | `spec.id` (identity) + `spec.name` (display) | `metadata.name` (both identity and display) |
+| Ownership | `spec.owners.members[]` with roles | `spec.owner` (single string) |
+| Relations | `spec.topology[]` with `ref`, `protocol`, `reason` | `spec.dependsOn[]`, `spec.providesApis[]`, etc. |
 
 ---
 
-## :material-swap-horizontal: Reference Normalization
+## Automatic Detection
 
-Backstage reference strings are normalized to canonical form during ingest:
+The system automatically detects which format a file uses:
 
-| Input | Normalized |
-|-------|-----------|
-| `"auth-service"` | `component:default/auth-service` |
-| `"group:platform-team"` | `group:default/platform-team` |
-| `"system:payments"` | `system:default/payments` |
-| `"component:my-ns/auth-service"` | `component:my-ns/auth-service` |
+- If the file contains `specVersion` → treated as **VSF IDP v2**
+- Otherwise → treated as **Backstage** format
+
+Both formats go through the same validation and normalization pipeline, just with different rules.
 
 ---
 
-## :material-alert-outline: Known Limitations
+## Reference Normalization
 
-!!! warning "Location kind not followed"
-    The `Location` kind is recognized but its `targets` are **not** discovered or followed. A `LOCATION_KIND_NOT_SUPPORTED` warning diagnostic is generated. Add target descriptors directly to the Catalog Root instead.
+In Backstage format, the normalizer automatically converts short references to canonical form:
 
-!!! info "No Backstage-specific validation"
-    Backstage descriptors pass minimal required field checks only (`apiVersion`, `kind`, `metadata.name`). VSF-specific rules (ownership email format, component types, review gate) apply only to `specVersion: vsf-idp.io/v2` documents.
+| Field | What you write | What it becomes |
+|-------|---------------|-----------------|
+| `spec.owner` | `team-alpha` | `group:default/team-alpha` |
+| `spec.system` | `core-platform` | `system:default/core-platform` |
+| `spec.dependsOn[]` | `auth-service` | `component:default/auth-service` |
+| `spec.providesApis[]` | `my-api` | `api:default/my-api` |
+
+The default kind and namespace are filled in based on the field type and the entity's own namespace.
 
 ---
 
-## :material-link: Further Reading
+## Important Differences
+
+!!! info "Entity kinds"
+    VSF IDP v2 always creates `component` entities. Backstage supports many kinds: `Component`, `System`, `API`, `Resource`, `Group`, `Domain`, etc.
+
+!!! info "Mixed workspaces"
+    Both formats can coexist in the same catalog root. A Backstage `System` entity can be referenced by a VSF IDP v2 `topology` entry, and vice versa.
+
+!!! warning "Location kind"
+    Backstage `Location` entities are not followed by the local catalog workspace. They produce a `LOCATION_KIND_NOT_SUPPORTED` warning. Add the target descriptors directly under a catalog root instead.
+
+---
+
+## Further Reading
 
 - [VSF IDP v2 Reference](vsf-v2.md)
-- [Backstage Software Catalog Descriptor Format](https://backstage.io/docs/features/software-catalog/descriptor-format)
-- [Backstage Component Entity](https://backstage.io/docs/features/software-catalog/system-model)
+- [Identity Rules](identity.md)
+- [Backstage Software Catalog](https://backstage.io/docs/features/software-catalog/)

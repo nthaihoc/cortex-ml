@@ -5,58 +5,63 @@ description: Node and edge visual states used throughout the topology viewer.
 
 # :material-palette-outline: Visual States
 
-The IDP Platform viewer uses **health badges, icons, and edge styles** to communicate entity and relation state. Visual states never rely on color alone — text and icon badges are always present.
+The topology viewer uses colors, borders, and icons to communicate the **health**, **freshness**, and **state** of every node.
+
+**Location:** `frontend/src/topology/` and `frontend/src/styles.css`
 
 ---
 
-## :material-cube-outline: Node States
+## Health States
 
-| State | Badge | Description |
-|-------|-------|-------------|
-| `entity` + `healthy` | :material-check-circle: Green | Fully resolved, valid entity |
-| `entity` + `warning` | :material-alert-circle: Amber | Entity has non-blocking warnings (e.g., Location kind) |
-| `entity` + `error` + `stale` | :material-clock-alert: Red / Strikethrough | Last-valid entity; current descriptor is invalid |
-| `draft` | :material-pencil-circle: Red | Document never successfully validated |
-| `unresolved` | :material-help-circle-outline: Amber dashed | Referenced entity not found in catalog |
-| `conflict` | :material-alert-decagram: Red | Duplicate canonical identity — no entity wins |
+Based on the `health` field returned by the API.
 
----
-
-## :material-relation-many-to-many: Relation (Edge) States
-
-| State | Style | Description |
-|-------|-------|-------------|
-| `healthy` + `current` | Solid green | Both endpoints resolved and valid |
-| `healthy` + `warning` | Dashed amber | Target entity not found (missing target) |
-| `error` + `provisional` | Dotted red | Source is invalid, conflicted, or in a draft |
+| Health | Visual | Meaning |
+|--------|--------|---------|
+| **Healthy** | Normal colors | No diagnostics, or only `info` diagnostics. |
+| **Warning** | :material-alert: Yellow border | Entity has `warning` diagnostics (non-blocking). |
+| **Error** | :material-close-circle: Red border | Entity has `error` diagnostics (blocking). |
 
 ---
 
-## :material-cube: Node Additional Information
+## Freshness States
 
-Nodes may display supplementary badges:
+Based on the `freshness` field returned by the API.
 
-| Badge | Source | Description |
-|-------|--------|-------------|
-| **Component type** | `spec.type` | e.g., `service`, `gateway`, `worker` |
-| **System** | `spec.system` / `metadata.system` | Parent system reference |
-| **Owners** | `spec.owners.members[*].user` / `spec.owner` | Owner email(s) |
-
----
-
-## :material-eye: Inspector Panel
-
-Selecting a node opens an **inspector panel** showing:
-
-- Full canonical reference
-- Document provenance (file path + field path)
-- All active diagnostics for that entity
-- Relation provenance for each edge
+| Freshness | Visual | Meaning |
+|-----------|--------|---------|
+| **Current** | Solid lines | The data matches the current file on disk. |
+| **Stale** | Dashed lines / Faded | The file was broken by a recent edit. We are showing the **last valid state**. |
 
 ---
 
-## :material-link: Further Reading
+## Node Types
 
-- [Topology Viewer](topology-viewer.md)
-- [Diagnostics Guide](../diagnostics/index.md)
-- [Architecture: State Management](../architecture/state.md)
+Based on the `state` field of the topology node.
+
+| State | Visual | Meaning |
+|-------|--------|---------|
+| **Entity** | Solid background | A fully valid, resolved entity. |
+| **Draft** | Yellow background, dashed border | A file with blocking errors that has *never* been valid before. |
+| **Conflict** | Red background, thick border | Two or more files are fighting over this identity. |
+| **Unresolved** | Gray background, dotted border | A relation target (like `dependsOn`) that does not exist in the catalog. |
+
+---
+
+## Edge Types
+
+Relations (edges) also have states based on their provenance.
+
+| State | Visual | Meaning |
+|-------|--------|---------|
+| **Valid** | Solid line | The relation was declared in a valid file. |
+| **Stale** | Dashed line | The relation was declared in a file that is now broken. |
+| **Provisional** | Dotted line | Reserved for future use (e.g., inferred relations). |
+
+When you **hover** over an edge, it highlights and displays a tooltip with the `protocol` and `reason` (if they were declared in the YAML).
+
+---
+
+## Further Reading
+
+- [State Management](../architecture/state.md) — How these states are tracked in the backend
+- [Topology Viewer](topology-viewer.md) — The ReactFlow component that renders these states

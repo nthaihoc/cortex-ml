@@ -1,75 +1,59 @@
 ---
 title: CLI Commands
-description: Detailed CLI command reference for the IDP Platform catalog tool.
+description: Planned commands for the IDP Platform CLI.
 ---
 
-# :material-console: CLI Commands Reference
+# :material-format-list-bulleted-type: CLI Commands
 
-```
-catalog --help
-
- Usage: catalog [OPTIONS] COMMAND [ARGS]...
-
- Service Catalog CLI.
-
-╭─ Options ──────────────────────────────────────────────────╮
-│ --help  Show this message and exit.                         │
-╰─────────────────────────────────────────────────────────────╯
-╭─ Commands ─────────────────────────────────────────────────╮
-│ validate   Validate a local descriptor                      │
-│ dependency Manage declared YAML dependencies                │
-╰─────────────────────────────────────────────────────────────╯
-```
+!!! warning "Planned Feature"
+    The CLI is not yet implemented. This page describes the planned command structure.
 
 ---
 
-## :material-text-box-outline: `catalog validate`
+## `idp validate`
 
+Validates all `catalog-info.yaml` files in a directory and exits with a non-zero status code if any blocking errors are found.
+
+**Usage in CI/CD:**
+
+```bash
+# Validates the current directory
+idp validate
+
+# Validates a specific directory
+idp validate ./my-services
+
+# Outputs results as JSON for other tools
+idp validate --format=json
 ```
-catalog validate --help
 
- Usage: catalog validate [OPTIONS] [PATH]
-
- Validate a local descriptor and optionally consult the REST catalog.
-
-╭─ Arguments ────────────────────────────────────────────────╮
-│ path  [PATH]  [default: catalog-info.yaml]                  │
-╰─────────────────────────────────────────────────────────────╯
-```
+**Output:**
+Prints a human-readable summary of all diagnostics, similar to the `GET /api/v1/catalog/diagnostics` endpoint.
 
 ---
 
-## :material-text-box-outline: `catalog dependency`
+## `idp query`
 
-```
-catalog dependency --help
+Queries the catalog for specific entities or relations.
 
- Usage: catalog dependency [OPTIONS] COMMAND [ARGS]...
+```bash
+# Find an entity by exact reference
+idp query component:platform/payment-gateway
 
- Manage declared YAML dependencies.
-
-╭─ Commands ─────────────────────────────────────────────────╮
-│ add  Select a catalog target and prepare a YAML change      │
-╰─────────────────────────────────────────────────────────────╯
-```
-
-### `catalog dependency add`
-
-```
-catalog dependency add --help
-
- Usage: catalog dependency add [OPTIONS] [PATH]
-
- Select a catalog target and prepare a local YAML dependency change.
-
-╭─ Arguments ────────────────────────────────────────────────╮
-│ path  [PATH]  [default: catalog-info.yaml]                  │
-╰─────────────────────────────────────────────────────────────╯
+# Search entities by name
+idp query --search "Payment"
 ```
 
 ---
 
-## :material-link: Further Reading
+## `idp generate`
 
-- [CLI Index](index.md)
-- [Typer Documentation](https://typer.tiangolo.com/)
+Scaffolds a new `catalog-info.yaml` file based on a template.
+
+```bash
+# Interactive prompt to create a new service
+idp generate service
+
+# Non-interactive generation
+idp generate service --id=my-service --namespace=platform --owner=team-a
+```

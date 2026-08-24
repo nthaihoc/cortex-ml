@@ -1,85 +1,31 @@
 ---
 title: CLI
-description: Command-line interface for the IDP Platform catalog.
+description: Command Line Interface for the IDP Platform (Planned).
 ---
 
 # :material-console: CLI
 
-The **IDP Platform CLI** is a Typer-based command-line tool for local catalog operations.
+!!! warning "Planned Feature"
+    The CLI is currently in development and not yet available for general use. The documentation below describes the planned design.
+
+The IDP Platform CLI will provide a way to interact with the catalog directly from your terminal, without needing the browser or VS Code. It will be especially useful for CI/CD pipelines to validate catalog files before merging.
 
 ---
 
-## :material-alert-outline: Status
+## Planned Goals
 
-!!! warning "Under Development"
-    The CLI is currently a **stub**. Commands are declared but not yet implemented. The structure is in place for future implementation.
-
----
-
-## :material-download-circle: Installation
-
-```bash
-cd cli
-pip install -e .
-# or
-uv sync
-```
-
-After installation, the `catalog` command is available:
-
-```bash
-catalog --help
-```
+- **CI/CD Validation:** Run `idp validate` in your GitHub Actions or GitLab CI to ensure no broken catalog files are merged.
+- **Fast Queries:** Query entities and relations directly from the terminal.
+- **Generation:** Scaffold new `catalog-info.yaml` files quickly.
 
 ---
 
-## :material-format-list-bulleted: Commands Reference
+<div class="grid cards" markdown>
 
-### `catalog validate`
+-   :material-format-list-bulleted-type:{ .lg .middle } **Commands**
 
-Validate a local descriptor and optionally consult the REST catalog.
+    The planned command list and arguments.
 
-```bash
-catalog validate [PATH]
-```
+    [:octicons-arrow-right-24: Commands](commands.md)
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `PATH` | `catalog-info.yaml` | Path to the descriptor file to validate |
-
-**Status:** Stub — not yet implemented.
-
----
-
-### `catalog dependency add`
-
-Select a catalog target and prepare a local YAML dependency change.
-
-```bash
-catalog dependency add [PATH]
-```
-
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `PATH` | `catalog-info.yaml` | Path to the descriptor to add the dependency to |
-
-**Status:** Stub — not yet implemented.
-
----
-
-## :material-package: Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| `typer ≥ 0.12` | CLI framework |
-| `httpx ≥ 0.27` | HTTP client for catalog API calls |
-| `pyyaml ≥ 6.0.2` | YAML parsing |
-| `mkdocs-material` | Documentation (bundled for convenience) |
-
----
-
-## :material-link: Further Reading
-
-- [Typer Documentation](https://typer.tiangolo.com/)
-- [httpx Documentation](https://www.python-httpx.org/)
-- [HTTP API Reference](../api/index.md)
+</div>

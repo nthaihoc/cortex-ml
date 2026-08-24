@@ -1,138 +1,123 @@
 ---
 title: Identity Rules
-description: How entity identity is computed and enforced in the IDP Platform.
+description: How entity identity is computed and what happens with duplicates.
 ---
 
 # :material-key: Identity Rules
 
-Entity identity is the cornerstone of the catalog's conflict detection and relation resolution.
+Every entity in the catalog has a **canonical reference** — a unique string that identifies it. This page explains how identity works and what happens when two files have the same identity.
 
 ---
 
-## :material-fingerprint: Canonical Reference Format
+## How Identity is Computed
 
-Every entity in the catalog is uniquely identified by a **canonical reference** of the form:
+### VSF IDP v2
+
+For VSF IDP v2 descriptors, the canonical reference is always:
 
 ```
-{kind}:{namespace}/{name}
+component:{metadata.namespace}/{spec.id}
 ```
 
-All three segments are **lowercase** and must match the pattern:
-
-```regex
-^[a-z0-9][a-z0-9._-]{0,62}$
-```
-
-### Examples
-
-| Canonical Reference | kind | namespace | name |
-|---------------------|------|-----------|------|
-| `component:platform/payment-gateway` | `component` | `platform` | `payment-gateway` |
-| `system:default/payments` | `system` | `default` | `payments` |
-| `api:platform/payment-api` | `api` | `platform` | `payment-api` |
-| `group:default/platform-team` | `group` | `default` | `platform-team` |
-
----
-
-## :material-star: VSF IDP v2 Identity
-
-For VSF v2 descriptors, the canonical reference is derived from:
-
-- **kind:** always `component`
-- **namespace:** `metadata.namespace`
-- **name:** `spec.id`
+**Example:**
 
 ```yaml
+specVersion: vsf-idp.io/v2
 metadata:
-  namespace: platform   # → namespace
+  namespace: platform     # ← part of identity
 spec:
-  id: payment-gateway   # → name
-  name: Payment Gateway # display-only, does NOT affect identity
+  id: payment-gateway     # ← part of identity
+  name: Payment Gateway   # ← NOT part of identity (display only)
 ```
 
-**Canonical:** `component:platform/payment-gateway`
+Canonical reference: `component:platform/payment-gateway`
 
-!!! info "Service key vs. canonical reference"
-    The "service key" used internally is `{metadata.system}.{spec.id}` (display purposes only). The catalog identity used for relations and conflict detection is always the canonical reference.
+### Backstage
 
----
+For Backstage descriptors, the canonical reference is:
 
-## :material-history: Backstage Identity
+```
+{kind}:{metadata.namespace}/{metadata.name}
+```
 
-For Backstage descriptors, the canonical reference is derived from:
-
-- **kind:** `kind` field (lowercased)
-- **namespace:** `metadata.namespace` (defaults to `"default"` if absent)
-- **name:** `metadata.name` (lowercased)
+**Example:**
 
 ```yaml
 apiVersion: backstage.io/v1alpha1
-kind: Component                   # → kind
+kind: Component              # ← part of identity
 metadata:
-  namespace: platform             # → namespace
-  name: legacy-service            # → name
-  title: Legacy Service           # display-only
+  name: auth-service         # ← part of identity
+  namespace: default         # ← part of identity (default: "default")
+  title: Authentication      # ← NOT part of identity
 ```
 
-**Canonical:** `component:platform/legacy-service`
+Canonical reference: `component:default/auth-service`
 
 ---
 
-## :material-swap-horizontal: Changing Identity
+## Normalization
 
-| Change | Effect |
-|--------|--------|
-| VSF: rename `spec.name` | **No identity change** — display name only |
-| VSF: change `spec.id` | **New identity** — old entity removed, new entity created |
-| VSF: change `metadata.namespace` | **New identity** |
-| Backstage: rename `metadata.title` | **No identity change** |
-| Backstage: rename `metadata.name` | **New identity** |
-| Backstage: change `metadata.namespace` | **New identity** |
+All identity segments are **lowercased** and must match the pattern `^[a-z0-9][a-z0-9._-]{0,62}$`:
 
----
+- Must start with a lowercase letter or number
+- Can contain lowercase letters, numbers, dots, underscores, and hyphens
+- Maximum 63 characters per segment
 
-## :material-content-duplicate: Duplicate Identity (Conflicts)
+These are **valid** identifiers: `payment-gateway`, `auth.service`, `my_api_v2`
 
-If two or more `catalog-info.yaml` files claim the **same canonical reference**, a **conflict** is created:
-
-- **Neither** entity is promoted to the resolved entities map
-- A `ENTITY_DUPLICATE_REF` blocking diagnostic is generated for **each** conflicting file
-- The conflict appears as a special "IDENTITY CONFLICT" node in topology
-- Relations pointing to the conflicting reference are marked as `provisional` and `health: error`
-
-**Resolution:** change `metadata.namespace` or `spec.id` (VSF) / `metadata.name` (Backstage) in one of the conflicting files.
+These are **invalid** identifiers: `Payment-Gateway` (uppercase), `-starts-with-hyphen`, `` (empty)
 
 ---
 
-## :material-code-braces: EntityReference Python API
+## Identity Conflicts
 
-```python
-from app.domain.value_objects.entity_reference import EntityReference
+A conflict happens when **two or more files** produce the same canonical reference.
 
-# Parse from a full reference string
-ref = EntityReference.parse("component:platform/payment-gateway")
-print(ref.kind)      # "component"
-print(ref.namespace) # "platform"
-print(ref.name)      # "payment-gateway"
-print(ref.canonical) # "component:platform/payment-gateway"
+**Example scenario:**
 
-# Parse with defaults
-ref = EntityReference.parse(
-    "payment-gateway",
-    default_kind="component",
-    default_namespace="platform",
-)
-# → component:platform/payment-gateway
-
-# Construct from parts
-ref = EntityReference.from_parts("component", "platform", "payment-gateway")
+```
+services/a/catalog-info.yaml  →  component:platform/payment-gateway
+services/b/catalog-info.yaml  →  component:platform/payment-gateway  ← CONFLICT!
 ```
 
+When a conflict is detected:
+
+1. **Neither entity is shown** in the catalog — both are removed from the snapshot
+2. A **conflict node** appears in the topology graph (marked with :material-alert-circle:{ style="color: #ef4444" })
+3. Both files get an `ENTITY_DUPLICATE_REF` **error diagnostic**
+4. The diagnostic message tells you which other file is causing the conflict
+
+### How to Fix a Conflict
+
+Change `metadata.namespace` or the identity field (`spec.id` for VSF, `metadata.name` for Backstage) in one of the conflicting files so they produce different canonical references.
+
 ---
 
-## :material-link: Further Reading
+## Identity Changes
 
-- [VSF IDP v2 Descriptor](vsf-v2.md)
+If you change the identity fields of a file, the system treats it as:
+
+1. **Remove** the old entity (with the old reference)
+2. **Add** a new entity (with the new reference)
+
+All relations from and to the old reference become unresolved until other files update their references to match.
+
+---
+
+## Display Name vs. Identity
+
+| Format | Identity Field | Display Name Field |
+|--------|---------------|-------------------|
+| VSF IDP v2 | `spec.id` | `spec.name` |
+| Backstage | `metadata.name` | `metadata.title` (or `metadata.name` if no title) |
+
+You can freely change the display name without affecting the entity's identity or any relations that point to it.
+
+---
+
+## Further Reading
+
+- [VSF IDP v2 Reference](vsf-v2.md)
 - [Backstage Compatibility](backstage.md)
-- [Diagnostics: ENTITY_DUPLICATE_REF](../diagnostics/codes.md#entity_duplicate_ref)
-- [Backstage Entity Reference format](https://backstage.io/docs/features/software-catalog/references)
+- [State Management](../architecture/state.md) — How conflicts are tracked
+- [Diagnostic Codes](../diagnostics/codes.md) — `ENTITY_DUPLICATE_REF` details

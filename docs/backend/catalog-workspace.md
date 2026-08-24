@@ -1,54 +1,63 @@
 ---
 title: CatalogWorkspace
-description: Deep-dive into the CatalogWorkspace core module — the heart of the IDP Platform.
+description: The core module that manages all catalog state — parsing, validation, identity, and topology.
 ---
 
 # :material-brain: CatalogWorkspace
 
-`CatalogWorkspace` (`backend/app/catalog_workspace/workspace.py`) is the **deep module** at the center of the IDP Platform. All catalog semantics — parsing, normalization, validation, relation projection, conflict detection, focused traversal, and diagnostics — flow through this single class.
+`CatalogWorkspace` is the **central engine** of the IDP Platform. Every other component (HTTP API, Language Server, file watcher) talks to this single class to read or update catalog state.
+
+**Location:** `backend/app/catalog_workspace/workspace.py`
 
 ---
 
-## :material-api: Public Interface
+## Public Interface
 
-### Construction
+### Creating a Workspace
 
 ```python
+from app.catalog_workspace.workspace import CatalogWorkspace
+from app.catalog_workspace.models import CatalogScope
+
 workspace = CatalogWorkspace.open(CatalogScope(roots=("file:///path/to/catalog",)))
 ```
 
-### Document Lifecycle
+### Adding or Updating a Document
 
 ```python
-# Add or update a document
 workspace.upsert_document(
-    source_uri="file:///path/to/catalog-info.yaml",
+    source_uri="file:///path/to/my-service/catalog-info.yaml",
     relative_path="my-service/catalog-info.yaml",
     content=b"specVersion: vsf-idp.io/v2\n...",
-    version="optional-version-string",
+    version="optional-sha256-hash",
 )
-
-# Remove a document
-workspace.remove_document("file:///path/to/catalog-info.yaml")
 ```
 
-### Reading State
+This call triggers the full pipeline: **parse → validate → normalize → project relations → resolve identity**.
+
+### Removing a Document
 
 ```python
-# Full in-memory snapshot
-snapshot: CatalogSnapshot = workspace.snapshot()
+workspace.remove_document("file:///path/to/my-service/catalog-info.yaml")
+```
 
-# All current diagnostics
-diagnostics: tuple[CatalogDiagnostic, ...] = workspace.diagnostics()
+### Reading the Current State
 
-# One-hop focused topology
-topology: FocusedTopology = workspace.focused_topology(
+```python
+# Get everything: entities, relations, conflicts, drafts, diagnostics
+snapshot = workspace.snapshot()
+
+# Get just the diagnostics
+diagnostics = workspace.diagnostics()
+
+# Get a one-hop view around an entity
+topology = workspace.focused_topology(
     "component:platform/payment-gateway",
-    direction="both",  # "incoming" | "outgoing" | "both"
-    depth=1,           # Fixed at 1
+    direction="both",   # "incoming", "outgoing", or "both"
+    depth=1,             # Always 1 (one hop)
 )
 
-# Topology by document URI (before entity is resolved)
+# Get a topology view based on a file URI (before entity is resolved)
 topology = workspace.focused_topology_for_document(
     "file:///path/to/catalog-info.yaml",
     direction="both",
@@ -57,58 +66,61 @@ topology = workspace.focused_topology_for_document(
 
 ---
 
-## :material-state-machine: Document Processing
+## How `upsert_document()` Works
 
-When `upsert_document()` is called:
+When you call `upsert_document()`, the workspace runs these steps in order:
 
-1. **Parse** — `HardenedYamlParser.parse()` converts bytes to `dict`
-2. **Validate** — `CatalogValidationEngine.validate()` runs schema + topology checks
-3. **If invalid** → record failure:
-   - If document was previously valid: mark as **stale** (retain last-valid entity)
-   - If document was never valid: record as **draft**
-4. **If valid** → normalize entity, extract canonical reference
-5. **Authority resolution** — update candidate map, promote or create conflict
-6. **Increment revision**
+```mermaid
+flowchart TD
+    A["1. Parse YAML bytes"] -->|Parse error| F["Mark as Draft or Stale"]
+    A -->|OK| B["2. Run validation"]
+    B -->|Blocking errors| F
+    B -->|OK| C["3. Normalize entity"]
+    C -->|Error| F
+    C -->|OK| D["4. Project relations"]
+    D --> E["5. Resolve identity\n(detect conflicts)"]
+    E --> G["6. Increment revision"]
+    F --> G
 
----
-
-## :material-graph: Focused Topology Algorithm
-
-`focused_topology(root, direction, depth=1)`:
-
-1. Build outgoing and incoming adjacency maps from all resolved relations
-2. Start with `frontier = {root_ref}`
-3. For each hop (depth=1):
-   - If `direction` includes `"outgoing"`: follow all outgoing edges from frontier
-   - If `direction` includes `"incoming"`: follow all incoming edges from frontier
-   - Add newly discovered nodes to `included`
-4. Collect all relations involving any included node pair
-5. Build `TopologyNode` for each included reference (entity/draft/conflict/unresolved)
-
----
-
-## :material-alert: Conflict Detection
-
-When two documents claim the same canonical reference (`kind:namespace/name`):
-
-- Both are added to `_candidates_by_ref[reference]`
-- `_refresh_authority()` detects `len(candidates) > 1` → removes from `_entities`
-- The conflict is surfaced via `_conflicts()` returning an `IdentityConflict`
-- Diagnostics include `ENTITY_DUPLICATE_REF` for each conflicting document
-
----
-
-## :material-data-matrix: Data Models
-
-### `CatalogScope`
-
-```python
-@dataclass(frozen=True, slots=True)
-class CatalogScope:
-    roots: tuple[str, ...]  # Catalog root URIs
 ```
 
-### `CatalogSnapshot`
+If any step fails, the document is either:
+
+- **Marked as draft** — if the document was never valid before
+- **Marked as stale** — if the document was valid before (keeps the last valid entity)
+
+---
+
+## Focused Topology Algorithm
+
+`focused_topology(root, direction, depth=1)` computes a one-hop view:
+
+1. Build adjacency maps from all resolved relations (outgoing and incoming)
+2. Start with `frontier = {root_ref}`
+3. For one hop:
+    - If `direction` is `"outgoing"` or `"both"`: follow all outgoing edges from the frontier
+    - If `direction` is `"incoming"` or `"both"`: follow all incoming edges from the frontier
+4. Collect all relations between the included nodes
+5. Build a `TopologyNode` for each node (with state: entity, draft, conflict, or unresolved)
+
+---
+
+## Conflict Detection
+
+When two documents claim the same canonical reference:
+
+1. Both are added to the internal `_candidates_by_ref` map
+2. The system detects `len(candidates) > 1` → removes the entity from the snapshot
+3. A conflict record is created with references to both source files
+4. Both documents get an `ENTITY_DUPLICATE_REF` blocking diagnostic
+
+When one of the conflicting documents is removed or its identity changes, the remaining document becomes the sole authority and the entity is restored.
+
+---
+
+## Data Models
+
+### CatalogSnapshot
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -121,23 +133,31 @@ class CatalogSnapshot:
     diagnostics: tuple[CatalogDiagnostic, ...]
 ```
 
-### `FocusedTopology`
+### FocusedTopology
 
 ```python
 @dataclass(frozen=True, slots=True)
 class FocusedTopology:
-    root: str                    # Root entity reference
+    root: str                     # Root entity reference
     direction: TopologyDirection  # "incoming" | "outgoing" | "both"
-    depth: int | None            # Fixed at 1
+    depth: int | None             # Fixed at 1
     nodes: Mapping[str, TopologyNode]
     relations: tuple[CatalogRelation, ...]
 ```
 
+### CatalogScope
+
+```python
+@dataclass(frozen=True, slots=True)
+class CatalogScope:
+    roots: tuple[str, ...]  # One or more catalog root URIs
+```
+
 ---
 
-## :material-link: Further Reading
+## Further Reading
 
-- [Ingest Pipeline](ingest-pipeline.md)
-- [Validation Engine](validation.md)
-- [State Management](../architecture/state.md)
-- [API Schemas](../api/schemas.md)
+- [Ingest Pipeline](ingest-pipeline.md) — How parsing, normalization, and projection work
+- [Validation Engine](validation.md) — How schema checks work
+- [State Management](../architecture/state.md) — Entity lifecycle and conflict handling
+- [API Schemas](../api/schemas.md) — Wire format of the snapshot and topology

@@ -5,11 +5,11 @@ description: Complete reference for the VSF IDP v2 catalog-info.yaml descriptor 
 
 # :material-star: VSF IDP v2 Descriptor
 
-The **VSF IDP v2** format (`specVersion: vsf-idp.io/v2`) is the primary authoring contract for all new services in the platform.
+The **VSF IDP v2** format is the primary way to describe services in the platform. It is identified by `specVersion: vsf-idp.io/v2` at the top of the file.
 
 ---
 
-## :material-file-document-outline: Minimal Valid Example
+## Full Example
 
 ```yaml
 specVersion: vsf-idp.io/v2
@@ -39,92 +39,105 @@ spec:
   topology:
     - ref: "component:checkout-service"
       protocol: REST
-      reason: "Receives payment initiation requests"
+      reason: "Receives payment requests"
     - ref: "providesApis:payment-api"
 ```
 
+This file creates an entity with the identity `component:platform/payment-gateway`.
+
 ---
 
-## :material-format-list-bulleted: Field Reference
+## Field Reference
 
 ### Root Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `specVersion` | `string` | ✅ | Must be exactly `"vsf-idp.io/v2"` |
-| `metadata` | `object` | ✅ | Entity identity and classification |
-| `spec` | `object` | ✅ | Component specification |
+| `metadata` | `object` | ✅ | Classification and identity fields |
+| `spec` | `object` | ✅ | Service specification |
 
 ---
 
 ### `metadata` Object
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `namespace` | `string` | ✅ | Matches `^[a-z][a-z0-9-]*$` |
-| `system` | `string` | ✅ | Matches `^[a-z][a-z0-9-]*$` |
-| `domain` | `string` | ✅ | ≤ 128 printable characters |
+| Field | Type | Required | Rules |
+|-------|------|----------|-------|
+| `namespace` | `string` | ✅ | Must match `^[a-z][a-z0-9-]*$` (lowercase letters, numbers, hyphens) |
+| `system` | `string` | ✅ | Must match `^[a-z][a-z0-9-]*$` |
+| `domain` | `string` | ✅ | Up to 128 printable characters, free text |
+
+**Example:**
+
+```yaml
+metadata:
+  namespace: platform      # Used in entity identity
+  system: idp-core         # Groups related services
+  domain: Platform Engineering  # Business domain (free text)
+```
 
 ---
 
 ### `spec` Object
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `id` | `string` | ✅ | Matches `^[a-z][a-z0-9-]*$` — forms the entity identity |
-| `name` | `string` | ✅ | Display name; no control characters |
-| `type` | `string` | ✅ | See [Component Types](#component-types) |
-| `description` | `string` | — | Free-form description |
-| `owners` | `object` | ✅ | Ownership declaration |
-| `review` | `object` | ✅ for `service`, `gateway` | Review gate configuration |
-| `topology` | `array` | — | Declared relations to other entities |
+| Field | Type | Required | Rules |
+|-------|------|----------|-------|
+| `id` | `string` | ✅ | Must match `^[a-z][a-z0-9-]*$` — this forms the entity identity |
+| `name` | `string` | ✅ | Display name (no control characters). Changing this does **not** change identity. |
+| `type` | `string` | ✅ | Must be one of the [Component Types](#component-types) below |
+| `description` | `string` | — | Free text description |
+| `owners` | `object` | ✅ | See [Ownership](#ownership) below |
+| `review` | `object` | Conditional | Required for `service` and `gateway` types |
+| `topology` | `array` | — | See [Topology](topology.md) |
 
 ---
 
-### `spec.owners` Object
+### Ownership {#ownership}
+
+Every service must have at least one owner with the `techlead` role.
 
 ```yaml
 spec:
   owners:
     members:
       - user: alice@vinsmartfuture.tech
-        role: techlead
+        role: techlead       # Required: at least one techlead
       - user: bob@vinsmartfuture.tech
         role: maintainer
       - user: charlie@vinsmartfuture.tech
         role: member
 ```
 
-| Field | Type | Validation |
-|-------|------|------------|
-| `members` | `array` | At least one member required |
-| `members[*].user` | `string` | Must match `[^@\s]+@vinsmartfuture.tech` |
+| Field | Type | Rules |
+|-------|------|-------|
+| `members` | `array` | Must have at least one item |
+| `members[*].user` | `string` | Must be a `@vinsmartfuture.tech` email address |
 | `members[*].role` | `string` | One of: `techlead`, `maintainer`, `member` |
 
-!!! warning "At least one `techlead` required"
-    Every `spec.owners.members` array must contain at least one member with `role: techlead`. Missing this causes a `SCHEMA_FIELD_REQUIRED` blocking diagnostic.
+!!! warning "At least one techlead required"
+    If no member has `role: techlead`, the validation engine produces a blocking `SCHEMA_FIELD_REQUIRED` error and the entity will not be registered.
 
 ---
 
-### `spec.review` Object
+### Review Gate
 
-Required for components with `type: service` or `type: gateway`.
+Required for services with `type: service` or `type: gateway`:
 
 ```yaml
 spec:
   review:
-    branch: main
+    branch: main    # The Git branch used for review
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `branch` | `string` | ✅ | Git branch used for the review gate |
+| `branch` | `string` | ✅ | Git branch name for the review gate |
 
 ---
 
-### `spec.topology` Array
+### Topology
 
-Declares typed relations to other catalog entities. Each item requires a `ref` and may include `protocol` and `reason`.
+Declares connections to other services. See the full reference at [Topology Fields](topology.md).
 
 ```yaml
 spec:
@@ -133,37 +146,19 @@ spec:
       protocol: gRPC
       reason: "Token validation"
     - ref: "providesApis:payment-api"
-    - ref: "consumesFrom:transaction-events"
-      protocol: Kafka
 ```
-
-#### `ref` Format
-
-The `ref` value uses a `{kind}:{identifier}` prefix format:
-
-| Prefix | Target Kind | Relation |
-|--------|------------|---------|
-| `system:{id}` | `system` | `partOf` |
-| `component:{id}` | `component` | `dependsOn` |
-| `resource:{id}` | `resource` | `dependsOn` |
-| `providesApis:{id}` | `api` | `providesApi` |
-| `consumesApis:{id}` | `api` | `consumesApi` |
-| `publishesTo:{id}` | `event` | `publishesTo` |
-| `consumesFrom:{id}` | `event` | `consumesFrom` |
-| `module:{id}` | `module` | `contains` |
-| `function:{id}` | `function` | `contains` |
 
 ---
 
-## :material-shape-outline: Component Types {#component-types}
+## Component Types {#component-types}
 
-The `spec.type` field accepts these values:
+The `spec.type` field must be one of these values:
 
-| Type | Description |
-|------|-------------|
-| `service` | Long-running HTTP/gRPC service |
-| `gateway` | API gateway or BFF |
-| `worker` | Background worker or consumer |
+| Type | Use for |
+|------|---------|
+| `service` | Long-running HTTP or gRPC service |
+| `gateway` | API gateway or backend-for-frontend |
+| `worker` | Background worker or message consumer |
 | `batch` | Batch processing job |
 | `job` | Scheduled or trigger-based job |
 | `library` | Shared library or SDK |
@@ -174,11 +169,11 @@ The `spec.type` field accepts these values:
 | `plugin` | Plugin or extension |
 | `tool` | Internal tooling |
 | `documentation` | Documentation site |
-| `other` | Does not fit the above categories |
+| `other` | Anything that does not fit the above |
 
 ---
 
-## :material-key: Identity Rules
+## Identity
 
 An entity's canonical reference is computed as:
 
@@ -186,18 +181,20 @@ An entity's canonical reference is computed as:
 component:{metadata.namespace}/{spec.id}
 ```
 
-**Example:** A descriptor with `metadata.namespace: platform` and `spec.id: payment-gateway` has the canonical reference `component:platform/payment-gateway`.
+**Example:** `metadata.namespace: platform` + `spec.id: payment-gateway` → `component:platform/payment-gateway`
 
-- `spec.name` is **display-only** and can change without affecting identity
-- Changing `metadata.namespace` or `spec.id` changes the entity's identity
-- Two files with the same canonical reference create an **identity conflict**
+Key rules:
+
+- `spec.name` is **display-only** — changing it does not change the identity
+- Changing `metadata.namespace` or `spec.id` changes the identity
+- Two files with the same canonical reference create an **identity conflict** (see [Identity Rules](identity.md))
 
 ---
 
-## :material-link: Further Reading
+## Further Reading
 
-- [Backstage Compatibility](backstage.md)
-- [Identity Rules](identity.md)
-- [Topology Fields](topology.md)
-- [Validation Engine](../backend/validation.md)
-- [Diagnostic Codes](../diagnostics/codes.md)
+- [Backstage Compatibility](backstage.md) — Using Backstage descriptors
+- [Identity Rules](identity.md) — Detailed identity and conflict rules
+- [Topology Fields](topology.md) — All relation types
+- [Validation Engine](../backend/validation.md) — How validation works
+- [Diagnostic Codes](../diagnostics/codes.md) — All error and warning codes

@@ -1,75 +1,52 @@
 ---
-title: Severity Guide
-description: Understanding diagnostic severity, blocking status, and their effects on catalog resolution.
+title: Severity & Blocking
+description: Understanding error vs warning severity and blocking diagnostics.
 ---
 
-# :material-alert-circle-outline: Severity Guide
+# :material-shield-alert: Severity & Blocking
 
----
-
-## :material-format-list-bulleted: Severity Levels
-
-| Severity | Description | Effect on Entity |
-|----------|-------------|-----------------|
-| `error` | A structural or semantic problem | May prevent entity resolution (if `blocking: true`) |
-| `warning` | A non-critical issue | Entity remains resolved |
+Every diagnostic has a **Severity** and a **Blocking** flag. Understanding the difference between these is crucial for fixing catalog issues.
 
 ---
 
-## :material-toggle-switch: Blocking vs. Non-Blocking
+## Severity
 
-| `blocking` | Effect |
-|-----------|--------|
-| `true` | Entity **cannot be resolved** — it becomes a draft (or stale/last-valid if it was previously valid) |
-| `false` | Entity **remains resolved** — the issue is visible but does not prevent catalog inclusion |
+Severity determines **how the diagnostic is presented** to the user.
 
-### Examples
+| Severity | VS Code | Webview | API (`health`) |
+|----------|---------|---------|----------------|
+| `error` | Red squiggly line | Red border | `"error"` |
+| `warning` | Yellow squiggly line | Yellow border | `"warning"` |
 
-| Code | Blocking | Entity State |
-|------|----------|-------------|
-| `YAML_SYNTAX_ERROR` | ✅ | Draft |
-| `SCHEMA_FIELD_REQUIRED` | ✅ | Draft (or stale if previously valid) |
-| `ENTITY_DUPLICATE_REF` | ✅ | Conflict (no entity wins) |
-| `REFERENCE_TARGET_NOT_FOUND` | ❌ | Resolved with warning relation |
-| `LOCATION_KIND_NOT_SUPPORTED` | ❌ | Resolved with warning |
+The API computes the overall `health` of an entity by taking the highest severity diagnostic attached to it. If an entity has both a warning and an error, its health is `"error"`.
 
 ---
 
-## :material-clock-alert: Stale vs. Draft
+## Blocking Flag
 
-| State | Meaning | Has Snapshot? |
-|-------|---------|--------------|
-| **Draft** | Never successfully validated | ❌ No |
-| **Stale (last-valid)** | Was valid, now has blocking errors | ✅ Yes (last-valid) |
+The `blocking` boolean flag determines **whether the entity is registered** in the catalog.
 
-When a document goes from valid to invalid:
-- Its **last-valid entity is kept** with `health: error, freshness: stale`
-- Topology continues to show the last-valid graph for navigation
-- Diagnostics point to the **current (invalid)** content
+### `blocking: true` (Draft or Stale)
+If a file has *any* blocking diagnostic, the `CatalogWorkspace` rejects it. 
+- If the file was never valid before, it becomes a **Draft**.
+- If the file was previously valid, it becomes **Stale** (we keep showing the last valid state).
 
-When the document is fixed:
-- The draft/stale entity is replaced with the new healthy entity
-- Relations are re-projected and freshness becomes `current`
+*Example:* A YAML syntax error (`YAML_SYNTAX_ERROR`) means we literally cannot read the file. We have to block it.
 
----
+### `blocking: false` (Registered)
+If a file has *only* non-blocking diagnostics (warnings), it is successfully registered in the catalog and appears as a normal entity.
 
-## :material-microsoft-visual-studio-code: VS Code Diagnostic Colors
-
-| Severity | VS Code Color |
-|----------|--------------|
-| Error | 🔴 Red underline + red gutter icon |
-| Warning | 🟡 Amber underline + amber gutter icon |
-
-The VS Code status bar shows:
-
-- 🟢 `VSF catalog · valid` — no diagnostics
-- 🟡 `VSF catalog · N warnings` — warnings only
-- 🔴 `VSF catalog · N errors` — one or more errors
+*Example:* Referencing an entity that doesn't exist yet (`REFERENCE_TARGET_NOT_FOUND`) is non-blocking. The entity is registered, and the missing target appears as an `Unresolved` node in the topology.
 
 ---
 
-## :material-link: Further Reading
+## Matrix
 
-- [Diagnostic Codes](codes.md)
-- [State Management](../architecture/state.md)
-- [VS Code Language Diagnostics](https://code.visualstudio.com/api/language-extensions/programmatic-language-features#provide-diagnostics)
+Most diagnostics are blocking errors. There are currently no blocking warnings.
+
+| Type | Blocking (`true`) | Non-Blocking (`false`) |
+|------|------------------|-----------------------|
+| **Error** | 20 codes (e.g., `SCHEMA_FIELD_INVALID`) | 0 codes |
+| **Warning** | 0 codes | 1 code (`REFERENCE_TARGET_NOT_FOUND`) |
+
+*Note: The platform is designed so that future custom validators could emit non-blocking errors (e.g., a mandatory company policy violation that shouldn't break the graph).*

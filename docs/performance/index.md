@@ -1,52 +1,35 @@
 ---
 title: Performance
-description: Performance benchmarks and scalability targets for the IDP Platform.
+description: Performance characteristics and limits of the IDP Platform.
 ---
 
 # :material-gauge: Performance
 
-The IDP Platform is designed to handle catalog sizes up to **5,000 entities** with sub-second focused topology responses.
+The IDP Platform is designed as a **local-first** developer tool. Because there is no network database and all data fits in memory, it is extremely fast.
+
+---
 
 <div class="grid cards" markdown>
 
 -   :material-timer-outline:{ .lg .middle } **Benchmarks**
 
-    Measured startup, focus, and search performance numbers.
+    Measured performance for loading, querying, and searching large catalogs.
 
-    [:octicons-arrow-right-24: View Benchmarks](benchmarks.md)
+    [:octicons-arrow-right-24: Benchmarks](benchmarks.md)
 
--   :material-scale-balance:{ .lg .middle } **Scalability**
+-   :material-chart-line-variant:{ .lg .middle } **Scalability Limits**
 
-    Design decisions that keep the viewer fast regardless of catalog size.
+    How the system degrades at extreme scale and current limits.
 
-    [:octicons-arrow-right-24: Scalability Notes](scalability.md)
+    [:octicons-arrow-right-24: Scalability Limits](scalability.md)
 
 </div>
 
 ---
 
-## :material-check: Milestone Targets
+## Why it's fast
 
-| Metric | Target |
-|--------|--------|
-| 1,000 entities: startup | < 2 seconds |
-| 1,000 entities: focused topology p95 | < 50 ms |
-| 5,000 entities: startup | < 10 seconds |
-| 5,000 entities: focused topology p95 | < 100 ms |
-| 5,000 entities: catalog search | < 50 ms |
-| Unsaved edit → LSP response | < 500 ms |
-| One-hop focused graph: max nodes | ≤ 3 (root + immediate neighbors) |
-
----
-
-## :material-run: Running Benchmarks
-
-```bash
-# Backend (Python)
-cd backend
-python -m scripts.benchmark_catalog
-
-# Frontend (TypeScript)
-cd frontend
-npm run benchmark
-```
+1. **In-Memory Core:** The entire `CatalogWorkspace` state is kept in RAM. Retrieving the snapshot or a focused topology requires zero disk I/O.
+2. **C Extensions:** The `watchfiles` library uses Rust, and `pyyaml` uses the libyaml C extension (when available) for maximum speed.
+3. **Optimized Algorithms:** The topology graph computation uses a simple adjacency list BFS that runs in microseconds.
+4. **Debouncing:** When you type in your editor, validation is debounced by 300 ms so we don't parse partial words.

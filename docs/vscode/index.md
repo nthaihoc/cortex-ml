@@ -1,39 +1,39 @@
 ---
 title: VS Code Extension
-description: Local Catalog Topology VS Code extension for live catalog validation and topology preview.
+description: Local Catalog Topology extension for VS Code.
 ---
 
 # :material-microsoft-visual-studio-code: VS Code Extension
 
-The **Local Catalog Topology** VS Code extension provides:
+The IDP Platform includes a VS Code extension that brings the catalog directly into your editor. It provides **live diagnostics** (squiggly lines for errors) and a **topology webview** that updates as you type.
 
-- :material-check-circle: **Live diagnostics** for `catalog-info.yaml` files (via LSP)
-- :material-graph: **One-hop topology webview** beside the active editor
-- :material-pin: **Pin focus** to lock the topology on a specific entity
+**Location:** `vscode-extension/`
+
+---
 
 <div class="grid cards" markdown>
 
--   :material-download:{ .lg .middle } **Installation**
+-   :material-download-circle-outline:{ .lg .middle } **Installation**
 
-    Build and install the extension locally.
+    How to build and install the extension (`.vsix`) in your editor.
 
     [:octicons-arrow-right-24: Installation](installation.md)
 
 -   :material-keyboard:{ .lg .middle } **Commands**
 
-    Available VS Code commands and keyboard shortcuts.
+    All available VS Code commands provided by the extension.
 
     [:octicons-arrow-right-24: Commands](commands.md)
 
--   :material-cog:{ .lg .middle } **Configuration**
+-   :material-cog-outline:{ .lg .middle } **Configuration**
 
-    Python path and working directory settings.
+    Settings for Python paths and server directories.
 
     [:octicons-arrow-right-24: Configuration](configuration.md)
 
--   :material-web:{ .lg .middle } **Webview Protocol**
+-   :material-swap-horizontal:{ .lg .middle } **Webview Protocol**
 
-    Message protocol between the extension host and the webview.
+    How the extension host talks to the React webview.
 
     [:octicons-arrow-right-24: Webview Protocol](webview-protocol.md)
 
@@ -41,13 +41,14 @@ The **Local Catalog Topology** VS Code extension provides:
 
 ---
 
-## :material-information-outline: Extension Metadata
+## How it Works
 
-| Property | Value |
-|----------|-------|
-| Display Name | Local Catalog Topology |
-| Extension ID | `local.local-catalog-topology-vscode` |
-| VS Code Engine | ^1.91.0 |
-| Category | Visualization |
-| Activation | On YAML files or workspace containing `catalog-info.yaml` |
-| Trusted Workspaces | Not supported |
+The extension acts as a client for the [Language Server](../lsp/index.md). 
+
+1. When it activates, it starts the Python LSP server in the background.
+2. It sends your unsaved typing to the server.
+3. The server runs the full `CatalogValidationEngine`.
+4. The extension shows the resulting diagnostics in your editor.
+5. The webview uses the custom `catalog/topologyForDocument` method to render the ReactFlow graph.
+
+Because it uses the same Python core as the HTTP API, **validation is identical everywhere**.

@@ -5,69 +5,48 @@ description: Available VS Code commands provided by the Local Catalog Topology e
 
 # :material-keyboard: VS Code Commands
 
-The extension contributes three commands to the VS Code command palette.
+The extension registers three commands in the VS Code Command Palette. You can find them by pressing ++ctrl+shift+p++ (++cmd+shift+p++ on Mac) and typing "Catalog".
 
 ---
 
-## :material-graph: `Catalog: Open Topology Beside`
+## `Catalog: Open Topology Beside`
 
 **Command ID:** `catalogTopology.openBeside`
 
-Opens the topology webview panel beside the currently focused `catalog-info.yaml` editor.
+Opens the Topology Webview in a new editor column next to your current file.
 
-**How to use:**
-1. Open a `catalog-info.yaml` file in the editor
-2. Open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-3. Run **"Catalog: Open Topology Beside"**
-
-A topology panel appears beside the editor, showing the one-hop topology graph centered on the focused descriptor.
+- **What it does:** Shows the one-hop topology graph for the `catalog-info.yaml` file you are currently editing.
+- **Live updates:** As you type in the YAML file, the graph updates automatically (after a 300 ms debounce).
+- **Draft mode:** If the file has errors, the graph will show a "Draft" node instead of the full entity.
 
 ---
 
-## :material-file-eye: `Catalog: Open Focused Source`
+## `Catalog: Open Focused Source`
 
 **Command ID:** `catalogTopology.openSource`
 
-Navigates the editor to the source file of the currently focused topology node.
+Opens the source YAML file for whatever node is currently selected in the webview.
+
+- **How to use:** First, click a node in the webview graph. Then run this command (or double-click the node, if supported).
+- **What it does:** It asks the backend for the `source_uri` of the selected entity and opens that file in VS Code. If the file is outside the current VS Code workspace, it may prompt you.
 
 ---
 
-## :material-restart: `Catalog: Restart Language Server`
+## `Catalog: Restart Language Server`
 
 **Command ID:** `catalogTopology.restartLanguageServer`
 
-Restarts the Python LSP server process. Use this if:
+Force-restarts the Python LSP server process in the background.
 
-- The language server crashes unexpectedly
-- You've updated the backend virtual environment
-- Diagnostics are stale or not appearing
-
----
-
-## :material-pin: Pin / Unpin Focus
-
-The topology panel includes a **Pin Focus** toggle that prevents the active editor from automatically updating the focused topology root. When pinned:
-
-- The topology stays on the current root
-- Active editor changes do not update the graph
-- Click **Unpin** to resume active-editor following
+- **When to use:**
+    - If the server crashes or stops responding
+    - If you changed the Python path in settings
+    - If you just installed new Python dependencies
+- **What it does:** Kills the old Python process, starts a new one, and re-sends the `initialize` message with your workspace folders.
 
 ---
 
-## :material-activation: Activation Events
+## Further Reading
 
-The extension activates automatically when:
-
-| Trigger | Description |
-|---------|-------------|
-| `workspaceContains:catalog-info.yaml` | Workspace has a catalog descriptor |
-| `workspaceContains:**/catalog-info.yaml` | Any nested descriptor |
-| `onLanguage:yaml` | A YAML file is opened |
-| `onCommand:catalogTopology.*` | Any catalog command is run |
-
----
-
-## :material-link: Further Reading
-
-- [Extension Configuration](configuration.md)
-- [VS Code Command Palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette)
+- [Language Server Protocol](../lsp/protocol.md) — How the extension talks to the server
+- [Configuration](configuration.md) — Settings that affect these commands

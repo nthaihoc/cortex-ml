@@ -1,29 +1,33 @@
 ---
 title: Frontend
-description: React + ReactFlow browser topology viewer for the IDP Platform.
+description: React browser viewer for the IDP Platform catalog topology.
 ---
 
 # :material-react: Frontend
 
-The frontend is a **React 19 + ReactFlow 11 + Vite 7** browser application that provides an interactive topology viewer for the local catalog.
+The frontend is a **React 19** application that displays the catalog topology in your browser. It uses **ReactFlow** to render the interactive graph and **Vite** for the development server.
+
+**Location:** `frontend/src/`
+
+---
 
 <div class="grid cards" markdown>
 
 -   :material-graph:{ .lg .middle } **Topology Viewer**
 
-    Interactive node graph with health badges and one-hop navigation.
+    The main ReactFlow component that renders nodes and edges.
 
     [:octicons-arrow-right-24: Topology Viewer](topology-viewer.md)
 
--   :material-magnify:{ .lg .middle } **Catalog Search**
+-   :material-text-search:{ .lg .middle } **Catalog Search**
 
-    Full-text search over the complete catalog snapshot.
+    The full-text search implementation for finding entities.
 
     [:octicons-arrow-right-24: Catalog Search](catalog-search.md)
 
 -   :material-palette-outline:{ .lg .middle } **Visual States**
 
-    Health, freshness, and state badges used across the UI.
+    How health, freshness, and node types are styled.
 
     [:octicons-arrow-right-24: Visual States](visual-states.md)
 
@@ -31,25 +35,23 @@ The frontend is a **React 19 + ReactFlow 11 + Vite 7** browser application that 
 
 ---
 
-## :material-console: Running the Frontend
+## Design Principles
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+Following the [Module Boundaries](../architecture/boundaries.md) rules, the frontend is **pure presentation**.
 
-The development server starts at `http://localhost:5173`. API calls are proxied to `http://127.0.0.1:8000` via the Vite dev proxy.
+- **No Validation:** It never parses YAML or checks schema rules.
+- **No Identity Resolution:** It uses the `reference` strings exactly as provided by the API.
+- **State Driven:** It just reacts to the `/api/v1/catalog/topology` data.
 
 ---
 
-## :material-package: Dependencies
+## API Client
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `react` | ^19.0.0 | UI framework |
-| `react-dom` | ^19.0.0 | DOM rendering |
-| `reactflow` | ^11.4.0 | Graph/topology visualization |
-| `vite` | ^7.3.6 | Build tool + dev server |
-| `typescript` | ^5.6.3 | Type safety |
-| `vitest` | ^4.1.10 | Testing |
+The `HttpLocalCatalogClient` (`frontend/src/localCatalog/HttpLocalCatalogClient.ts`) handles all communication with the backend.
+
+It provides typed methods for:
+- Fetching the health status
+- Fetching the focused topology
+- Connecting to the SSE stream (`/api/v1/catalog/events`)
+
+When the SSE stream emits a `revisionChanged` event, the client triggers a callback that tells React to re-fetch the current view.

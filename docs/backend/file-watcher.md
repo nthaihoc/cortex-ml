@@ -1,120 +1,83 @@
 ---
 title: File Watcher
-description: How the CatalogFileWatcher detects and processes filesystem changes.
+description: How changes to catalog files are detected and processed.
 ---
 
-# :material-file-eye-outline: File Watcher
+# :material-file-eye: File Watcher
 
-**File:** `backend/app/local_catalog/watcher.py`
+The file watcher monitors the catalog root directory for changes. When a `catalog-info.yaml` file is created, modified, or deleted, the watcher updates the `CatalogWorkspace` automatically.
 
-The `CatalogFileWatcher` monitors the `CATALOG_ROOT` directory for changes to `catalog-info.yaml` files and updates the `CatalogWorkspace` accordingly.
+**Location:** `backend/app/local_catalog/watcher.py`
 
 ---
 
-## :material-pipeline: Architecture
+## How it Works
 
+```mermaid
+sequenceDiagram
+    participant OS as Operating System
+    participant WF as watchfiles library
+    participant CW as CatalogFileWatcher
+    participant WS as CatalogWorkspace
+
+    OS->>WF: File change event
+    WF->>CW: Change notification (path, type)
+    CW->>CW: Debounce (300ms)
+    CW->>CW: Filter: is this a catalog-info.yaml?
+    alt File created or modified
+        CW->>CW: Read file content
+        CW->>WS: upsert_document(uri, path, content)
+    else File deleted
+        CW->>WS: remove_document(uri)
+    end
+    WS->>WS: Re-validate, update state
+    WS-->>CW: Revision changed
+    CW-->>CW: Publish CatalogChangeNotification
 ```
-watchfiles.awatch()                      ← raw OS filesystem events
-        │
-        ▼
-WatchfilesCatalogEventSource.__aiter__() ← filters + normalizes events
-        │ yields tuple[CatalogFileEvent, ...]
-        ▼
-CatalogFileWatcher.run()                 ← main event loop
-        │
-        ▼
-CatalogFileWatcher._schedule(event)      ← debounce per-file key
-        │
-        ▼ (after 300ms debounce)
-CatalogFileWatcher._apply(event)         ← reads + upserts/removes
-        │
-        ▼
-LocalCatalogRuntime.workspace.upsert_document() / remove_document()
-        │
-        ▼
-LocalCatalogRuntime.changes.publish(notification) ← SSE
-```
+
+### Key Behaviors
+
+| Behavior | Detail |
+|----------|--------|
+| **Library** | Uses [`watchfiles`](https://watchfiles.helpmanual.io/) (Rust-based, cross-platform) |
+| **Debounce** | Waits **300 ms** after the last change before processing. This prevents processing partial saves. |
+| **Filtering** | Only processes files named exactly `catalog-info.yaml` |
+| **Skipped dirs** | Ignores `.git`, `.venv`, `node_modules`, `dist`, `build`, `__pycache__`, and dot-directories |
+| **Symlinks** | Not followed (security) |
+| **Large files** | Files over 1 MB are skipped |
 
 ---
 
-## :material-file-multiple: Event Types
+## Change Notifications
+
+After processing a change, the watcher publishes a `CatalogChangeNotification` containing:
 
 ```python
-class CatalogFileChange(StrEnum):
-    ADDED = "added"
-    MODIFIED = "modified"
-    MOVED = "moved"
-    DELETED = "deleted"
+@dataclass
+class CatalogChangeNotification:
+    revision: int                    # New revision number
+    changed_source_uris: list[str]   # Files that were added/modified
+    removed_source_uris: list[str]   # Files that were deleted
 ```
 
-**MOVED** events are decomposed into a `DELETED` for the source path and an `ADDED` for the destination path.
+This notification is consumed by:
+
+- **SSE endpoint** → pushes to connected browsers
+- **Language Server** → sends `catalog/revisionChanged` to VS Code
 
 ---
 
-## :material-clock-fast: Debounce Mechanism
+## Startup vs. Runtime
 
-Each file path has a per-key debounce:
-
-1. When an event arrives, a new async task is created for the file key
-2. The previous pending task for that key is **cancelled**
-3. The new task waits `debounce_seconds` (default: `0.3s`)
-4. If a newer event arrives before the debounce expires, the cycle repeats
-5. Only the last (most recent) event applies
-
-This ensures **burst saves** (e.g., auto-format on save) apply only the final state.
+| Phase | What happens |
+|-------|-------------|
+| **Startup** | All files are discovered and loaded. No debounce — files are processed immediately. |
+| **Runtime** | The watcher monitors for changes. Changes are debounced (300 ms) and processed individually. |
 
 ---
 
-## :material-shield: Safety Filtering
+## Further Reading
 
-`_safe_event_path()` filters events before processing:
-
-| Check | Action if failed |
-|-------|-----------------|
-| File name is exactly `catalog-info.yaml` | Skip |
-| Path is within `catalog_root` | Skip |
-| No path segment starts with `.` | Skip |
-| No path segment is in ignored directory list | Skip |
-| No parent directory is a symlink or junction | Skip |
-
----
-
-## :material-file-move: Batch Normalization
-
-A single watchfiles batch may contain multiple events. The normalizer:
-
-1. Groups events by type: added, modified, deleted
-2. Sorts each group by path
-3. Pairs `deleted[i]` with `added[i]` as `MOVED` events (up to `min(len(added), len(deleted))`)
-4. Remaining unpaired adds → `ADDED` events
-5. Remaining unpaired deletes → `DELETED` events
-6. All `modified` events → `MODIFIED` events
-
----
-
-## :material-code-braces: Custom Event Sources (Testing)
-
-For testing and injection, the `event_source` parameter accepts any `AsyncIterable[tuple[CatalogFileEvent, ...]]`:
-
-```python
-from app.local_catalog.api import create_local_catalog_app
-from app.local_catalog.watcher import CatalogFileEvent, CatalogFileChange
-
-async def fake_events():
-    yield (CatalogFileEvent(CatalogFileChange.MODIFIED, Path("catalog-info.yaml")),)
-
-app = create_local_catalog_app(
-    catalog_root=Path("./catalog"),
-    event_source=fake_events(),
-    watcher_wait=lambda _: None,  # instant debounce
-)
-```
-
----
-
-## :material-link: Further Reading
-
-- [Local HTTP Runtime](local-catalog.md)
-- [SSE Events](../api/events.md)
-- [watchfiles Documentation](https://watchfiles.helpmanual.io/)
-- [asyncio Tasks](https://docs.python.org/3/library/asyncio-task.html)
+- [Local HTTP Runtime](local-catalog.md) — The runtime that starts the watcher
+- [Data Flow](../architecture/data-flow.md) — How data moves through the system
+- [SSE Events](../api/events.md) — How changes are pushed to browsers

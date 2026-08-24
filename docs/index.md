@@ -10,11 +10,11 @@ hide:
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch-outline:{ .lg .middle } **Quick Start**
+-   :material-rocket-launch-outline:{ .lg .middle } **Get Started**
 
     ---
 
-    Get up and running in minutes with a fresh clone. No database, no containers, no remote services required.
+    Set up the platform in minutes. No database, no containers, no cloud services needed.
 
     [:octicons-arrow-right-24: Getting Started](getting-started/index.md)
 
@@ -22,7 +22,7 @@ hide:
 
     ---
 
-    Understand the layered design: `CatalogWorkspace` at the core, FastAPI and LSP as adapters, React and VS Code as viewers.
+    Learn how the system works: `CatalogWorkspace` at the core, with FastAPI, LSP, React, and VS Code as adapters.
 
     [:octicons-arrow-right-24: Architecture](architecture/index.md)
 
@@ -30,7 +30,7 @@ hide:
 
     ---
 
-    Author `catalog-info.yaml` files using VSF IDP v2 with full backward compatibility for Backstage descriptors.
+    Write `catalog-info.yaml` files using VSF IDP v2 or Backstage format.
 
     [:octicons-arrow-right-24: Descriptor Guide](descriptor/index.md)
 
@@ -38,7 +38,7 @@ hide:
 
     ---
 
-    Loopback-only REST API with catalog snapshots, focused topology, diagnostics, and real-time SSE events.
+    Local REST API for catalog snapshots, topology views, diagnostics, and live SSE events.
 
     [:octicons-arrow-right-24: API Reference](api/index.md)
 
@@ -46,7 +46,7 @@ hide:
 
     ---
 
-    Live validation diagnostics and one-hop topology preview directly inside your editor, powered by a Python LSP server.
+    See validation errors and topology graphs directly in your editor, with live updates as you type.
 
     [:octicons-arrow-right-24: Extension Guide](vscode/index.md)
 
@@ -54,7 +54,7 @@ hide:
 
     ---
 
-    Measured benchmarks: 1,000 entities under 2 s startup, 5,000 entities at p95 87 ms focus time.
+    Benchmarks show 1,000 entities load in ~511 ms and focused views respond in under 5 ms.
 
     [:octicons-arrow-right-24: Performance](performance/index.md)
 
@@ -62,82 +62,66 @@ hide:
 
 ---
 
-## :material-information-outline: What is IDP Platform?
+## What is IDP Platform?
 
-**IDP Platform** is a **development-environment vertical slice** for browsing declared VSF IDP v2 catalog topology from local `catalog-info.yaml` files.
+**IDP Platform** is a **local-first developer tool** for browsing the declared service topology in your workspace. It reads `catalog-info.yaml` files from your local disk, validates them, and shows the service graph — in a browser or inside VS Code.
 
-It lets engineers **see the declared service graph of their workspace in real time** — in a browser viewer or inside VS Code — with zero external services, zero database, zero authentication, and zero network connection required after initial dependency installation.
+**No database, no remote server, no login required.** Everything runs on your machine.
 
 ```mermaid
-graph TB
-    FS["📄 catalog-info.yaml files"]
+flowchart LR
+    FILES["📄 catalog-info.yaml\nfiles on disk"] --> CW["🧠 CatalogWorkspace\n(Python core)"]
+    CW --> API["🌐 FastAPI\nHTTP API"]
+    CW --> LSP["🔌 Language Server\n(LSP over stdio)"]
+    API --> BROWSER["⚛️ React Viewer\n(Browser)"]
+    LSP --> VSCODE["💻 VS Code\nExtension"]
 
-    subgraph CW["CatalogWorkspace"]
-        direction LR
-        A["YAML parsing"] --> B["normalization"]
-        B --> C["validation"]
-        C --> D["relation projection"]
-        D --> E["conflict detection"]
-        E --> F["focused topology"]
-    end
-
-    subgraph HTTP["FastAPI · HTTP API"]
-        React["🌐 React Browser"]
-    end
-
-    subgraph LSP["Python LSP · stdio"]
-        VSCode["🖥️ VS Code Extension"]
-    end
-
-    FS --> CW
-    CW --> HTTP
-    CW --> LSP
 ```
 
 !!! info "Design Philosophy"
-    **Python owns all catalog semantics.** The HTTP layer and LSP server are thin adapters that translate data shapes. TypeScript and React are pure presentation. This means the same validation engine runs for filesystem scanning, HTTP requests, and editor diagnostics.
+    **Python owns all catalog logic.** The HTTP layer and LSP server are thin adapters. TypeScript and React only handle display. This means the same validation engine runs everywhere — filesystem scanning, HTTP requests, and editor diagnostics all produce the same results.
 
 ---
 
-## :material-feature-search-outline: Key Features
+## Key Features
 
 | Feature | Description |
 |---|---|
-| :material-file-search: **File Discovery** | Recursively discovers all `catalog-info.yaml` files beneath a Catalog Root |
-| :material-check-all: **Dual Schema Support** | VSF IDP v2 (`specVersion: vsf-idp.io/v2`) and Backstage descriptors |
-| :material-graph: **Topology Graph** | One-hop focused traversal, interactive node navigation |
-| :material-stethoscope: **Live Diagnostics** | Structured diagnostics with stable codes, severity, and field-level provenance |
-| :material-history: **Last-Valid State** | Previously valid documents remain visible as stale/error during invalid edits |
-| :material-alert: **Conflict Detection** | Duplicate canonical entity references surface as conflict nodes |
-| :material-eye: **Real-Time Updates** | Filesystem watcher + SSE stream keeps browser state current automatically |
-| :material-microsoft-visual-studio-code: **Editor Integration** | LSP diagnostics + topology webview with 300 ms debounce on unsaved changes |
-| :material-speedometer: **Performance** | 1,000 entities: < 2 s startup; 5,000 entities: < 90 ms p95 focus time |
+| :material-file-search: **File Discovery** | Automatically finds all `catalog-info.yaml` files in your project folders |
+| :material-check-all: **Two Schema Formats** | Supports both VSF IDP v2 (`specVersion: vsf-idp.io/v2`) and Backstage descriptors |
+| :material-graph: **Topology Graph** | Shows a one-hop view of service connections — click any node to explore further |
+| :material-stethoscope: **Live Diagnostics** | Shows errors and warnings with exact file location and suggested fixes |
+| :material-history: **Last-Valid State** | When you break a file while editing, the previous valid version stays visible |
+| :material-alert: **Conflict Detection** | Catches when two files try to define the same service identity |
+| :material-eye: **Real-Time Updates** | Saving a file automatically updates the browser view and editor diagnostics |
+| :material-microsoft-visual-studio-code: **Editor Integration** | See validation errors and topology webview directly in VS Code |
+| :material-speedometer: **Fast** | 1,000 entities load in ~511 ms; focused topology responds in under 5 ms |
 
 ---
 
-## :material-map: Project Map
+## Project Map
 
 ```
 idp-platform/
-├── backend/            # Python FastAPI + catalog engine
+├── backend/            # Python — API server, catalog engine, LSP, file watcher
 │   └── app/
-│       ├── catalog_workspace/   # ← Core: CatalogWorkspace
+│       ├── catalog_workspace/   # Core: CatalogWorkspace (all catalog logic)
 │       ├── ingest/              # YAML parsing, normalization, relation projection
-│       ├── validators/          # Schema + topology validation engine
+│       ├── validators/          # Schema + reference + topology validation
 │       ├── domain/              # Entity, EntityReference, RelationType
-│       ├── local_catalog/       # HTTP runtime, file watcher, filesystem adapter
-│       └── catalog_language_server/  # stdio LSP + unsaved editor overlay
-├── frontend/           # React + ReactFlow browser topology viewer
-├── vscode-extension/   # VS Code extension (LSP client + webview host)
-├── cli/                # Typer-based catalog CLI
-├── openapi/            # OpenAPI 3.1 contract (openapi.yaml)
+│       ├── local_catalog/       # HTTP server, file watcher, filesystem adapter
+│       └── catalog_language_server/  # LSP server for VS Code
+├── frontend/           # React + ReactFlow — browser topology viewer
+├── vscode-extension/   # VS Code extension — LSP client + topology webview
+├── cli/                # CLI tool (planned, not yet ready)
+├── openapi/            # OpenAPI 3.1 specification
 ├── contracts/          # Contract-tested JSON examples
-└── docs/               # Existing prose documentation
+└── site/docs/          # This documentation (MkDocs Material)
 ```
 
 ---
 
-## :material-link: References & Further Reading
+## References
 
 - [Backstage Software Catalog](https://backstage.io/docs/features/software-catalog/)
 - [OpenAPI Specification 3.1](https://spec.openapis.org/oas/v3.1.0)

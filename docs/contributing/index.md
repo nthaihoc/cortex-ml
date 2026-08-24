@@ -1,54 +1,37 @@
 ---
 title: Contributing
-description: How to contribute to the IDP Platform project.
+description: How to contribute to the IDP Platform repository.
 ---
 
-# :material-handshake: Contributing
+# :material-source-pull: Contributing
 
-Thank you for your interest in contributing to **IDP Platform — Local Catalog Topology**!
+Welcome! We appreciate your interest in contributing to the IDP Platform. This section covers the workflow and coding conventions for the project.
+
+---
 
 <div class="grid cards" markdown>
 
--   :material-source-branch:{ .lg .middle } **Development Workflow**
+-   :material-git:{ .lg .middle } **Workflow**
 
-    Branching strategy, pull request process, and commit conventions.
+    Branching strategy, pull requests, and the review process.
 
-    [:octicons-arrow-right-24: Workflow](workflow.md)
+    [:octicons-arrow-right-24: Development Workflow](workflow.md)
 
--   :material-code-braces:{ .lg .middle } **Code Conventions**
+-   :material-code-tags-check:{ .lg .middle } **Coding Conventions**
 
-    Python, TypeScript, and documentation style guidelines.
+    Linting rules, typing guidelines, and style requirements.
 
-    [:octicons-arrow-right-24: Conventions](conventions.md)
+    [:octicons-arrow-right-24: Coding Conventions](conventions.md)
 
 </div>
 
 ---
 
-## :material-quick-alert-outline: Before You Start
+## Quick Setup
 
-1. Read the [Architecture Overview](../architecture/index.md) to understand the module boundaries
-2. Run the full test suite to verify your environment: `python -m pytest` + `npm test`
-3. Check existing issues and discussions before opening a new one
+If you want to start hacking right away:
 
----
-
-## :material-bug: Reporting Issues
-
-When reporting a bug, include:
-
-- Operating system and version
-- Python and Node.js versions
-- The `catalog-info.yaml` content that triggers the issue (if applicable)
-- The full diagnostic output or error message
-- Steps to reproduce
-
----
-
-## :material-lightbulb-on-outline: Proposing Features
-
-Open a discussion issue describing:
-
-- The use case or problem it solves
-- How it fits within the existing architecture
-- Whether it requires changes to the `CatalogWorkspace` core (approach carefully — all catalog semantics live there)
+1. Clone the repository
+2. Run `cp idp-platform/.env.example idp-platform/.env`
+3. Follow the [Installation](../getting-started/installation.md) guide
+4. Read the [Module Boundaries](../architecture/boundaries.md) before making changes

@@ -1,145 +1,125 @@
 ---
 title: Topology Fields
-description: Complete reference for topology relation declarations in catalog-info.yaml descriptors.
+description: How to declare connections between services in catalog-info.yaml.
 ---
 
 # :material-graph: Topology Fields
 
-Topology declarations express **intentional relationships** between catalog entities. These are declared in the descriptor, never inferred from runtime traffic.
+Topology fields declare how your service connects to other services in the catalog. These connections are shown as edges in the topology graph.
 
 ---
 
-## :material-relation-many-to-many: Supported Relation Types
+## VSF IDP v2 Topology
 
-| Relation | Direction | Description |
-|----------|-----------|-------------|
-| `partOf` | entity → parent | Entity belongs to a system, domain, or group |
-| `dependsOn` | entity → dependency | Entity depends on another component or resource |
-| `providesApi` | entity → API | Entity exposes this API |
-| `consumesApi` | entity → API | Entity consumes this API |
-| `publishesTo` | entity → event | Entity publishes to this event/topic |
-| `consumesFrom` | entity → event | Entity consumes from this event/topic |
-| `contains` | entity → module/function | Entity contains this module or function |
-
----
-
-## :material-star: VSF IDP v2 Topology
-
-In VSF v2, topology is declared as a list in `spec.topology`. Each item uses a `{kind}:{id}` prefix format.
+In VSF IDP v2, all relations are declared in the `spec.topology` array:
 
 ```yaml
 spec:
   topology:
-    # Depends on another component
-    - ref: "component:auth-service"
+    - ref: "component:platform/auth-service"
       protocol: gRPC
-      reason: "Token validation"
-
-    # Provides an API
-    - ref: "providesApis:payment-api"
-
-    # Consumes from a Kafka topic
-    - ref: "consumesFrom:transaction-events"
+      reason: "Token validation on every request"
+    - ref: "providesApis:platform/payment-api"
+    - ref: "consumesFrom:platform/order-events"
       protocol: Kafka
-      reason: "Async event processing"
-
-    # Part of a system
-    - ref: "system:payments"
 ```
 
-### VSF Topology Item Fields
+### Topology Item Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `ref` | `string` | ✅ | `{kind-prefix}:{identifier}`, optionally `{kind}:{namespace}/{name}` |
-| `protocol` | `string` | — | Transport protocol (e.g., `REST`, `gRPC`, `Kafka`, `AMQP`) |
-| `reason` | `string` | — | Human-readable reason for this relation |
+| `ref` | `string` | ✅ | Reference to the target entity (see format below) |
+| `protocol` | `string` | — | Communication protocol (e.g., `REST`, `gRPC`, `Kafka`) |
+| `reason` | `string` | — | Why this connection exists |
 
-### VSF Ref Prefix Mapping
+### `ref` Format
 
-| Prefix | Resolved kind | Relation |
-|--------|--------------|---------|
-| `system` | `system` | `partOf` |
-| `component` | `component` | `dependsOn` |
-| `resource` | `resource` | `dependsOn` |
-| `providesApis` | `api` | `providesApi` |
-| `consumesApis` | `api` | `consumesApi` |
-| `publishesTo` | `event` | `publishesTo` |
-| `consumesFrom` | `event` | `consumesFrom` |
-| `module` | `module` | `contains` |
-| `function` | `function` | `contains` |
+The `ref` value uses a `{kind}:{namespace}/{name}` or `{kind}:{name}` format. The kind prefix determines the relation type:
+
+| Prefix | Target Kind | Relation Type | Meaning |
+|--------|------------|---------------|---------|
+| `system:` | `system` | `partOf` | This service belongs to that system |
+| `component:` | `component` | `dependsOn` | This service depends on that service |
+| `resource:` | `resource` | `dependsOn` | This service depends on that resource |
+| `providesApis:` | `api` | `providesApi` | This service provides that API |
+| `consumesApis:` | `api` | `consumesApi` | This service consumes that API |
+| `publishesTo:` | `event` | `publishesTo` | This service publishes to that event channel |
+| `consumesFrom:` | `event` | `consumesFrom` | This service consumes from that event channel |
+| `module:` | `module` | `contains` | This service contains that module |
+| `function:` | `function` | `contains` | This service contains that function |
+
+!!! tip "Short form"
+    If you omit the namespace, it defaults to the entity's own `metadata.namespace`:
+    ```yaml
+    # These two are the same (when metadata.namespace is "platform"):
+    - ref: "component:platform/auth-service"
+    - ref: "component:auth-service"
+    ```
 
 ---
 
-## :material-history: Backstage Topology
+## Backstage Topology
 
-In Backstage format, relations are declared as top-level `spec` fields:
+In Backstage format, relations are declared using separate spec fields:
 
 ```yaml
 spec:
-  system: system:payments               # partOf
-  domain: domain:financial-services     # partOf
-  owner: group:platform-team            # ownership (not a topology relation)
+  system: core-platform
   dependsOn:
-    - component:auth-service
-    - component:billing-service
+    - component:default/auth-service
+    - resource:default/main-database
   providesApis:
-    - api:payment-api
+    - api:default/payment-api
   consumesApis:
-    - api:auth-api
-  publishesTo:
-    - event:payment-completed
-  consumesFrom:
-    - event:order-created
+    - api:default/user-api
 ```
 
-### Backstage Field Mapping
+### Backstage Relation Fields
 
-| Spec Field | Default Kind | Relation |
-|-----------|-------------|---------|
-| `system` | `system` | `partOf` |
-| `domain` | `domain` | `partOf` |
-| `parent` | `group` | `partOf` |
-| `dependsOn[]` | `component` | `dependsOn` |
-| `providesApis[]` | `api` | `providesApi` |
-| `consumesApis[]` | `api` | `consumesApi` |
-| `publishesTo[]` | `event` | `publishesTo` |
-| `consumesFrom[]` | `event` | `consumesFrom` |
-
----
-
-## :material-eye: Topology Visualization
-
-### Health States for Relations
-
-| State | Color | Meaning |
-|-------|-------|---------|
-| `healthy` | Green solid | Both source and target are resolved |
-| `warning` | Amber dashed | Target entity is not yet resolved |
-| `error` | Red dotted | Provisional relation (invalid source or duplicate target) |
-
-### Traversal Rules
-
-- **Root:** Always included in the focused view
-- **Direction:** `both` (default), `incoming`, or `outgoing`
-- **Depth:** Fixed at **1 hop** — click a related node to continue navigation
-- **Missing targets:** Visible as `UNRESOLVED` warning nodes; do not block the source entity
+| Field | Default Kind | Multiple | Relation Type |
+|-------|-------------|----------|---------------|
+| `spec.system` | `system` | No (single value) | `partOf` |
+| `spec.domain` | `domain` | No | `partOf` |
+| `spec.parent` | `group` | No | `partOf` |
+| `spec.dependsOn[]` | `component` | Yes (array) | `dependsOn` |
+| `spec.providesApis[]` | `api` | Yes | `providesApi` |
+| `spec.consumesApis[]` | `api` | Yes | `consumesApi` |
+| `spec.publishesTo[]` | `event` | Yes | `publishesTo` |
+| `spec.consumesFrom[]` | `event` | Yes | `consumesFrom` |
 
 ---
 
-## :material-alert-outline: Common Validation Issues
+## Relation Types
 
-| Issue | Cause | Action |
-|-------|-------|--------|
-| `REFERENCE_INVALID` | `ref` is not a valid entity reference string | Check the prefix and identifier format |
-| `REFERENCE_TARGET_NOT_FOUND` | Target entity not in the catalog | Add the target's `catalog-info.yaml` |
-| `TOPOLOGY_SELF_REFERENCE` | Entity declares a relation to itself | Remove the self-referencing topology item |
+The platform supports 7 relation types:
+
+| Relation Type | Meaning | Example |
+|--------------|---------|---------|
+| `partOf` | Entity belongs to a larger group | Service → System |
+| `dependsOn` | Entity depends on another entity | Service → Service |
+| `providesApi` | Entity provides an API | Service → API |
+| `consumesApi` | Entity uses an API | Service → API |
+| `publishesTo` | Entity publishes events | Service → Event Channel |
+| `consumesFrom` | Entity consumes events | Service → Event Channel |
+| `contains` | Entity contains a sub-component | Service → Module |
 
 ---
 
-## :material-link: Further Reading
+## Validation Rules
+
+The system checks topology entries for several problems:
+
+| Problem | Error Code | Blocking |
+|---------|-----------|----------|
+| `ref` is not a valid entity reference | `REFERENCE_INVALID` | ✅ Yes |
+| Unknown relation kind prefix | `REFERENCE_INVALID` | ✅ Yes |
+| Target entity does not exist in the catalog | `REFERENCE_TARGET_NOT_FOUND` | ❌ No (warning) |
+| Entity references itself | `TOPOLOGY_SELF_REFERENCE` | ✅ Yes |
+
+---
+
+## Further Reading
 
 - [VSF IDP v2 Reference](vsf-v2.md)
-- [Focused Topology API](../api/endpoints.md#get-apiv1catalogtopology)
-- [Topology Viewer](../frontend/topology-viewer.md)
-- [Backstage System Model](https://backstage.io/docs/features/software-catalog/system-model)
+- [Backstage Compatibility](backstage.md)
+- [Diagnostic Codes](../diagnostics/codes.md)

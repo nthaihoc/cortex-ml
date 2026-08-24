@@ -5,76 +5,58 @@ description: Interactive ReactFlow topology viewer for the IDP Platform catalog.
 
 # :material-graph: Topology Viewer
 
-**File:** `frontend/src/topology/TopologyViewer.tsx`
+The `TopologyViewer` is the main component of the frontend. It uses the **ReactFlow** library to render entities as nodes and relations as edges.
 
-The topology viewer is the main React component that renders the interactive service graph using ReactFlow.
-
----
-
-## :material-monitor: Features
-
-| Feature | Description |
-|---------|-------------|
-| :material-graph: **One-hop graph** | Renders the root entity and its immediate neighbors |
-| :material-cursor-default-click: **Click to navigate** | Click any related node to make it the new focused root |
-| :material-pin: **Pin focus** | Lock the current root to prevent active-editor auto-navigation |
-| :material-badge-outline: **Health badges** | Visual badges for healthy, warning, error, stale, draft, and conflict states |
-| :material-refresh: **Auto-refresh** | SSE events trigger automatic re-fetch and re-render |
-| :material-magnify: **Catalog search** | Full-text search across the entire catalog snapshot |
-| :material-information-outline: **Inspector panel** | Shows diagnostics and relation provenance for the focused node |
+**Location:** `frontend/src/topology/TopologyViewer.tsx`
 
 ---
 
-## :material-link-variant: Navigation Model
+## Component Structure
 
 ```mermaid
-graph LR
-    A[Initial Load] --> B[Fetch /api/v1/catalog/snapshot]
-    B --> C{Select root entity}
-    C --> D[Fetch /api/v1/catalog/topology?root=X]
-    D --> E[Render one-hop graph]
-    E --> F{Click related node}
-    F --> D
-    E --> G{SSE event received}
-    G --> D
-```
+flowchart TD
+    APP["App.tsx\n(Layout + Search Bar)"] --> TV["TopologyViewer\n(ReactFlow wrapper)"]
+    TV --> RF["ReactFlow\n(Interactive canvas)"]
+    RF --> CN["CatalogNode\n(Custom node component)"]
+    RF --> RE["CatalogEdge\n(Custom edge component)"]
 
-The viewer is **intentionally fixed to one hop**. Navigation continues by clicking related nodes, each becoming the new root for the next focused view.
-
----
-
-## :material-api: API Contract — `localContract.ts`
-
-The frontend maps HTTP API responses to strongly-typed TypeScript interfaces:
-
-```typescript
-// types.ts
-interface TopologyNode {
-  reference: string;
-  displayName: string;
-  state: "entity" | "unresolved" | "conflict" | "draft";
-  health: "healthy" | "warning" | "error";
-  freshness: "current" | "stale";
-  // ...
-}
-
-interface CatalogRelation {
-  source: string;
-  target: string;
-  relationType: RelationType;
-  health: Health;
-  freshness: Freshness;
-  provisional: boolean;
-  protocol?: string;
-  reason?: string;
-}
 ```
 
 ---
 
-## :material-link: Further Reading
+## Layout Algorithm
 
-- [Visual States](visual-states.md)
-- [Catalog Search](catalog-search.md)
-- [API Topology Endpoint](../api/endpoints.md#get-apiv1catalogtopology)
+The graph uses a **force-directed layout** (implemented in `frontend/src/topology/topologyLayout.local.test.ts` for testing, but ReactFlow provides the visual layout).
+
+Nodes are arranged concentrically:
+- The **focused root node** is always in the center.
+- Nodes connected by `dependsOn` or `consumesApi` are placed on the left (inputs).
+- Nodes connected by `providesApi` or `publishesTo` are placed on the right (outputs).
+- Nodes connected by `partOf` are placed above or below.
+
+---
+
+## Interaction
+
+- **Click a node:** Changes the `root` parameter and re-fetches the topology focused on that new node.
+- **Hover an edge:** Highlights the connection and shows the `protocol` and `reason` (if provided).
+- **Pan and Zoom:** Built-in ReactFlow controls for navigating large graphs.
+
+---
+
+## Real-time Updates
+
+The `TopologyViewer` listens to the `onRevisionChanged` callback from the API client (which is driven by the SSE event stream).
+
+When an event fires:
+1. The viewer calls `client.getFocusedTopology(currentRoot)` again.
+2. The new data replaces the old data.
+3. ReactFlow automatically animates the nodes to their new positions.
+
+---
+
+## Further Reading
+
+- [Visual States](visual-states.md) — How nodes are styled based on health/freshness
+- [Catalog Search](catalog-search.md) — The search bar implementation
 - [ReactFlow Documentation](https://reactflow.dev/)

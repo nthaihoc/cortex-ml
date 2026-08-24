@@ -3,111 +3,85 @@ title: Custom LSP Methods
 description: Custom catalog/topologyForDocument and catalog/revisionChanged methods.
 ---
 
-# :material-code-braces-box: Custom LSP Methods
+# :material-call-made: Custom LSP Methods
 
-Beyond standard LSP, the catalog language server defines two custom methods for topology and revision tracking.
+In addition to standard LSP methods, the server implements two custom methods specifically for the topology webview in VS Code.
 
 ---
 
-## :material-arrow-right-circle: `catalog/topologyForDocument` — Request
+## `catalog/topologyForDocument`
 
-Returns the one-hop focused topology for the currently focused editor document.
+**Direction:** Client (VS Code) ➔ Server (Python)
 
-### Request Parameters
+This method asks the server for the topology graph centered around a specific file, even if that file is currently invalid.
+
+### Request Payload
 
 ```json
 {
   "uri": "file:///path/to/catalog-info.yaml",
-  "focus": null,
-  "direction": "both",
-  "depth": 1
+  "direction": "both"
 }
 ```
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `uri` | `string (uri)` | ✅ | — | URI of the active editor document |
-| `focus` | `string \| null` | — | `null` | Override the focused entity reference |
-| `direction` | `string` | — | `"both"` | `"incoming"`, `"outgoing"`, or `"both"` |
-| `depth` | `integer` | — | `1` | Must be exactly `1` |
+| Field | Type | Description |
+|-------|------|-------------|
+| `uri` | `string` | The document URI to focus on |
+| `direction` | `string` | `"incoming"`, `"outgoing"`, or `"both"` |
 
-### Response
+### Response Payload
+
+The response contains both the topology and the diagnostics for that file.
 
 ```json
 {
-  "focus": {
-    "kind": "entity",
-    "entityRef": "component:platform/payment-gateway"
-  },
   "topology": {
-    "root": "component:platform/payment-gateway",
+    "root": "component:platform/my-service",
     "direction": "both",
     "depth": 1,
-    "nodes": [
-      {
-        "reference": "component:platform/payment-gateway",
-        "displayName": "Payment Gateway Service",
-        "state": "entity",
-        "health": "healthy",
-        "freshness": "current",
-        "provenance": { "..." : "..." },
-        "conflictSources": [],
-        "componentType": "service",
-        "system": "system:default/payments",
-        "owners": ["alice@vinsmartfuture.tech"]
-      }
-    ],
+    "nodes": { ... },
     "relations": [ ... ]
   },
-  "diagnostics": [ ... ],
-  "diagnosticGroups": [ ... ],
-  "catalogRevision": 42
-}
-```
-
-!!! note "camelCase boundary"
-    The custom method response uses `camelCase` field names (not `snake_case`). This is an explicit mapping applied in `service.py` to match TypeScript conventions.
-
-### Focus Object
-
-| `focus.kind` | Condition | Fields |
-|-------------|-----------|--------|
-| `"entity"` | Document resolves to a valid entity | `entityRef` |
-| `"draft"` | Document is a draft (never-valid or unsaved) | `documentUri` |
-
----
-
-## :material-bell-outline: `catalog/revisionChanged` — Notification
-
-Sent by the server to the extension whenever the catalog revision changes.
-
-```json
-{
-  "revision": 43,
-  "changedDocumentUri": "file:///path/to/catalog-info.yaml"
-}
-```
-
-Or after workspace folder changes:
-
-```json
-{
-  "revision": 43,
-  "workspaceFolderUris": [
-    "file:///path/to/workspace1",
-    "file:///path/to/workspace2"
+  "diagnostics": [
+    {
+      "code": "SCHEMA_FIELD_REQUIRED",
+      "severity": "error",
+      "message": "...",
+      "blocking": true
+    }
   ]
 }
 ```
 
-**Extension behavior on receipt:**
-- Refetch `catalog/topologyForDocument` for the currently visible topology panel
-- Update the catalog revision in the webview state
+If the document is a **draft** (it was never valid and has no computed entity reference yet), `topology.root` will be `null`, but the diagnostics will still be returned.
 
 ---
 
-## :material-link: Further Reading
+## `catalog/revisionChanged`
 
-- [Protocol](protocol.md)
-- [VS Code Extension Webview Protocol](../vscode/webview-protocol.md)
-- [LSP Specification — Custom Methods](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#dollarRequests)
+**Direction:** Server (Python) ➔ Client (VS Code)
+
+This is a **notification** (no response expected). The server sends this whenever the catalog state changes (e.g., after the 300 ms debounce when you type).
+
+### Notification Payload
+
+```json
+{
+  "revision": 45
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `revision` | `integer` | The new catalog revision number |
+
+### How VS Code Uses It
+
+When the VS Code extension receives this notification, it tells the open webview panel to **refetch** its topology. This is what makes the topology graph update in real-time as you type, without saving the file.
+
+---
+
+## Further Reading
+
+- [LSP Protocol Events](protocol.md)
+- [Webview Protocol](../vscode/webview-protocol.md) — How the extension talks to the webview

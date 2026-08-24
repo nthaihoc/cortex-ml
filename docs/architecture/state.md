@@ -1,117 +1,170 @@
 ---
 title: State Management
-description: How the IDP Platform manages in-memory catalog state, last-valid entities, drafts, and conflicts.
+description: How the IDP Platform manages entities, drafts, conflicts, and stale data.
 ---
 
 # :material-state-machine: State Management
 
-The IDP Platform holds **all catalog state in-memory**. There is no persistent cache, no database, and no disk writes from the workspace (only from explicit source updates through the HTTP API).
+The `CatalogWorkspace` maintains all catalog state in memory. This page explains the different states an entity can be in and how transitions happen.
 
 ---
 
-## :material-diagram: Entity Lifecycle
+## Entity Lifecycle
+
+Every `catalog-info.yaml` file goes through a lifecycle as it is discovered, edited, and validated:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft : document parsed\nbut invalid
-    [*] --> Entity : document parsed\nand valid
-    Draft --> Entity : document fixed\nand re-validated
-    Entity --> Stale : document becomes\ninvalid (error/stale)
-    Entity --> Conflict : duplicate canonical\nreference detected
-    Stale --> Entity : document fixed
-    Conflict --> Entity : one duplicate removed
-    Entity --> [*] : document removed
-    Draft --> [*] : document removed
-    Stale --> [*] : document removed
+    [*] --> Parsed: File discovered
+    Parsed --> Valid: Passes validation
+    Parsed --> Draft: Fails validation (first time)
+    Valid --> Entity: Identity resolved (no conflict)
+    Valid --> Conflict: Another file has the same identity
+    Entity --> Stale: File edited but now invalid
+    Stale --> Entity: File fixed, passes validation again
+    Entity --> [*]: File deleted
+    Draft --> Entity: File fixed, passes validation
+    Draft --> [*]: File deleted
+    Conflict --> Entity: Conflicting file removed
 ```
 
 ---
 
-## :material-information-outline: Entity States
+## Node States
 
-### `entity` — Fully Resolved
+Each entity in the topology graph has one of four states:
 
-A document that parsed, validated, and normalized successfully. It has:
-
-- A canonical `EntityReference` (`kind:namespace/name`)
-- A cached, normalized descriptor
-- `health: healthy` (or `health: warning` for `Location` kind)
-- `freshness: current`
-
-### `draft` — Never Valid
-
-A document that has **never** successfully validated. It has:
-
-- A `display_name` derived from the file path
-- `health: error`
-- No resolved entity reference (or a partially-resolved one if identity was parseable)
-
-### `stale` — Last-Valid
-
-A document that was **previously valid** but is **currently invalid**. It:
-
-- **Retains its last valid entity** in the workspace for the current process lifetime
-- Shows `health: error, freshness: stale`
-- The diagnostic points to the **current invalid content**, not the last valid state
-
-!!! important "Process restart clears stale state"
-    Stale last-valid entities live only for the duration of the process. After a restart, a document with no valid content on disk becomes a draft — there is no snapshot of the last-valid state.
-
-### `conflict` — Duplicate Identity
-
-When two or more documents claim the same canonical reference (`kind:namespace/name`), **neither** entity wins. Both are removed from the resolved entities map and replaced by a conflict node.
-
-The conflict shows:
-- Both source file paths
-- `ENTITY_DUPLICATE_REF` diagnostic on each conflicting document
-- Suggested action: `"Change metadata.namespace or the entity identifier"`
+| State | Icon | Meaning |
+|-------|------|---------|
+| **Entity** | :material-check-circle:{ style="color: #4ade80" } | Fully valid and resolved. No problems. |
+| **Draft** | :material-pencil-circle:{ style="color: #facc15" } | The file has errors and was never valid before. Shows up with limited info. |
+| **Stale** | :material-clock-alert:{ style="color: #ef4444" } | The file was valid before but is now broken. The **last valid version** is kept visible. |
+| **Conflict** | :material-alert-circle:{ style="color: #ef4444" } | Two or more files claim the same entity identity. None of them is shown. |
+| **Unresolved** | :material-help-circle:{ style="color: #fbbf24" } | A relation target that does not exist in the catalog yet. |
 
 ---
 
-## :material-database: Internal Data Structures
+## Internal Data Structures
 
-`CatalogWorkspace` maintains five primary dictionaries:
+The `CatalogWorkspace` uses these internal maps to track state:
 
-```python
-# Authoritative entities: reference → CatalogEntity
-_entities: dict[str, CatalogEntity]
+### `_candidates_by_ref`
 
-# Candidates awaiting authority resolution: reference → {uri → CatalogEntity}
-_candidates_by_ref: dict[str, dict[str, CatalogEntity]]
+Maps each canonical entity reference to a dict of candidate documents:
 
-# Source tracking: uri → canonical reference
-_entity_ref_by_document: dict[str, str]
-
-# Relations per document: uri → (CatalogRelation, ...)
-_relations_by_document: dict[str, tuple[CatalogRelation, ...]]
-
-# Draft entities (never-valid): uri → DraftEntity
-_drafts: dict[str, DraftEntity]
-
-# Per-document diagnostics: uri → (CatalogDiagnostic, ...)
-_document_diagnostics: dict[str, tuple[CatalogDiagnostic, ...]]
+```
+"component:platform/payment-gateway" → {
+    "file:///path/to/a/catalog-info.yaml": CatalogEntity(...),
+    "file:///path/to/b/catalog-info.yaml": CatalogEntity(...)  ← conflict!
+}
 ```
 
-Authority is resolved via `_refresh_authority(reference)`:
+- **1 candidate** → entity is promoted to `_entities`
+- **2+ candidates** → all are removed from `_entities`, conflict is detected
+- **0 candidates** → entity is removed entirely
 
-- **0 candidates** → remove from `_entities`
-- **1 candidate** → promote to `_entities[reference]`
-- **2+ candidates** → remove from `_entities` (conflict)
+### `_entities`
+
+The current resolved entity map. Only contains entities with exactly one candidate (no conflicts):
+
+```
+"component:platform/payment-gateway" → CatalogEntity(health=healthy, freshness=current)
+```
+
+### `_drafts`
+
+Documents that failed validation and were never valid before:
+
+```
+"file:///path/to/broken/catalog-info.yaml" → DraftEntity(
+    display_name="broken-service",
+    entity_ref="component:platform/broken-service",  # may be null
+    health=error
+)
+```
+
+### `_document_diagnostics`
+
+Active diagnostics for each document that has problems:
+
+```
+"file:///path/to/catalog-info.yaml" → (
+    CatalogDiagnostic(code="SCHEMA_FIELD_REQUIRED", severity="error", ...),
+    CatalogDiagnostic(code="REFERENCE_INVALID", severity="error", ...),
+)
+```
 
 ---
 
-## :material-counter: Revision Counter
+## Last-Valid State (Stale Entities)
 
-Every mutation to the workspace increments `_revision`. This integer is used for:
+When you edit a valid file and introduce an error, the system does **not** remove the entity immediately. Instead:
 
-- SSE `CatalogChangeNotification` to signal state changes to clients
-- Detecting superseded in-flight requests in the file watcher and language service
+1. The entity is marked as **stale** (freshness = `stale`, health = `error`)
+2. The last valid data stays visible in the topology graph
+3. All relations from this entity are also marked as stale
+4. The file's diagnostics show the current errors
+
+This gives you time to fix your changes without the entity disappearing from the graph.
+
+When you fix the error and save, the entity goes back to **healthy** and **current**.
+
+```mermaid
+flowchart LR
+    A["Entity: healthy ✓"] -->|"User breaks file"| B["Entity: stale ⚠️\n(last valid data shown)"]
+    B -->|"User fixes file"| A
+    B -->|"User deletes file"| C["Entity removed"]
+
+```
 
 ---
 
-## :material-link: Further Reading
+## Conflict Detection
 
-- [Architecture Overview](index.md)
-- [Diagnostics Reference](../diagnostics/index.md)
-- [Validation Engine](../backend/validation.md)
-- [CatalogWorkspace Source](../backend/catalog-workspace.md)
+A conflict happens when two or more `catalog-info.yaml` files produce the same canonical entity reference.
+
+**Example:** If both `services/a/catalog-info.yaml` and `services/b/catalog-info.yaml` define `component:platform/payment-gateway`, a conflict is created.
+
+When a conflict exists:
+
+- The entity is **removed** from the snapshot
+- A **conflict node** appears in the topology graph
+- Both documents get an `ENTITY_DUPLICATE_REF` error diagnostic
+- The diagnostic tells you which other file is causing the conflict
+
+To fix a conflict, change `metadata.namespace` or `spec.id` in one of the files so they produce different canonical references.
+
+---
+
+## Revision Counter
+
+Every time the catalog state changes, the `_revision` counter increments by 1. This counter is used by:
+
+- The **HTTP API** to tell clients when to refresh
+- The **SSE stream** to notify browsers of changes
+- The **LSP server** to notify VS Code of changes
+
+The revision number is monotonically increasing and never resets during a session.
+
+---
+
+## Snapshot
+
+At any point, you can get a **snapshot** of the entire catalog state by calling `workspace.snapshot()`. The snapshot contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `revision` | `int` | Current revision number |
+| `entities` | `dict[str, CatalogEntity]` | All resolved entities (keyed by canonical ref) |
+| `relations` | `tuple[CatalogRelation, ...]` | All resolved relations with health status |
+| `conflicts` | `dict[str, IdentityConflict]` | All identity conflicts |
+| `drafts` | `dict[str, DraftEntity]` | All draft entities (failed first validation) |
+| `diagnostics` | `tuple[CatalogDiagnostic, ...]` | All active diagnostics |
+
+---
+
+## Further Reading
+
+- [CatalogWorkspace](../backend/catalog-workspace.md) — Implementation details
+- [Diagnostic Codes](../diagnostics/codes.md) — All error and warning codes
+- [Data Flow](data-flow.md) — How data moves through the pipeline

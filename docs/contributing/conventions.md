@@ -1,97 +1,77 @@
 ---
-title: Code Conventions
-description: Python, TypeScript, and documentation style guidelines for IDP Platform contributors.
+title: Coding Conventions
+description: Linting, typing, and style guidelines for the IDP Platform.
 ---
 
-# :material-code-braces: Code Conventions
+# :material-code-tags-check: Coding Conventions
 
----
-
-## :material-language-python: Python Conventions
-
-### Style
-
-- **Formatter:** `ruff format` (Black-compatible)
-- **Linter:** `ruff check`
-- **Type checker:** `mypy`
-- **Python minimum:** 3.12
-
-### Naming
-
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Modules | `snake_case` | `catalog_workspace.py` |
-| Classes | `PascalCase` | `CatalogWorkspace` |
-| Functions | `snake_case` | `focused_topology()` |
-| Constants | `UPPER_SNAKE_CASE` | `DEFAULT_MAX_DESCRIPTOR_SIZE_BYTES` |
-| Private | `_leading_underscore` | `_refresh_authority()` |
-
-### Architecture Rules
-
-- **No catalog rules in adapters.** The HTTP layer and LSP server translate data shapes; all business logic lives in `CatalogWorkspace` and the ingest pipeline.
-- **Frozen dataclasses preferred** for value objects and snapshots.
-- **`slots=True`** on all `dataclass` definitions where possible.
-- **Imports:** absolute, never relative for cross-module imports.
-
-### Testing
-
-- **Framework:** `pytest`
-- **Fixtures:** prefer factory functions over class-based fixtures
-- **Names:** `test_{scenario_name}` — descriptive, not abbreviated
+To keep the codebase maintainable, we enforce strict formatting and typing rules across both Python and TypeScript.
 
 ---
 
-## :material-language-typescript: TypeScript Conventions
+## Python Conventions
 
-### Style
+We use **Ruff** for all Python linting and formatting. It replaces Flake8, Black, and isort.
 
-- **Formatter:** Prettier (via `npm run format` if configured)
-- **Type checker:** `tsc --strict`
-- **Minimum target:** ES2022
+### Running Ruff
 
-### Naming
+```bash
+cd idp-platform/backend
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Files | `camelCase.ts` | `catalogSearch.ts` |
-| Interfaces | `PascalCase` | `TopologyNode` |
-| Functions | `camelCase` | `fetchTopology()` |
-| Constants | `UPPER_SNAKE_CASE` or `camelCase` | `DEFAULT_DEPTH` |
+# Check for errors
+ruff check .
 
-### Architecture Rules
+# Fix auto-fixable errors
+ruff check --fix .
 
-- **No catalog rules in TypeScript.** TypeScript maps Python data shapes for presentation; it never reimplements validation or topology rules.
-- **Explicit `null` checks** — never rely on falsy coercions for optional fields.
-- **Contract fixtures** are the source of truth for LSP/webview message shapes.
+# Format code
+ruff format .
+```
 
----
+### Python Typing (Strict)
 
-## :material-naming-convention: Field Naming Across Boundaries
+The backend uses Python 3.12+ type hints. We enforce **strict mode** with `pyright` (or `mypy`).
 
-| Context | Convention |
-|---------|-----------|
-| Python internal | `snake_case` |
-| HTTP API (`openapi.yaml`) | `snake_case` |
-| LSP custom methods | `camelCase` |
-| Webview protocol | `camelCase` |
-
-Explicit mappers convert between conventions at each boundary. Shared contract fixtures test both sides of every translation.
+- Every function signature must be fully typed (arguments and return type).
+- Use `|` for unions (e.g., `str | None` instead of `Optional[str]`).
+- Use built-in generics (e.g., `list[str]`, `dict[str, int]`) instead of the `typing` module.
+- Never use `Any` unless absolutely necessary (and if you do, leave a comment explaining why).
 
 ---
 
-## :material-file-document: Documentation Conventions
+## TypeScript Conventions
 
-- **Language:** English, active voice, present tense
-- **Icons:** use Material Design icons in section headers (`:material-<name>:`)
-- **Tables:** prefer tables over bullet lists for structured data
-- **Code blocks:** always specify language for syntax highlighting
-- **Links:** use relative Markdown links to other documentation pages
+We use **ESLint** for linting and **Prettier** for formatting.
+
+### Running Linters
+
+```bash
+cd idp-platform/frontend  # or vscode-extension
+
+# Check for errors
+npm run lint
+
+# Format code
+npm run format
+```
+
+### TypeScript Typing (Strict)
+
+Both the frontend and VS Code extension run with `"strict": true` in `tsconfig.json`.
+
+- Every variable and function must have a type.
+- Avoid `any`. Use `unknown` if you truly don't know the type, and then narrow it with a type guard.
+- Interfaces for API responses must exactly match the JSON Contracts in `contracts/examples/`.
 
 ---
 
-## :material-link: Further Reading
+## Documentation Conventions
 
-- [Development Workflow](workflow.md)
-- [Architecture Boundaries](../architecture/boundaries.md)
-- [Ruff Documentation](https://docs.astral.sh/ruff/)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
+This site uses **MkDocs Material**.
+
+When writing markdown documentation:
+
+1. **Use clear, B1/B2 English.** Avoid complex idioms or jargon.
+2. **Keep it visual.** Use Mermaid diagrams, icons, and tables where possible.
+3. **Use admonitions.** Highlight important information using `!!! info`, `!!! warning`, etc.
+4. **Include examples.** Don't just describe a field; show a YAML or JSON snippet.

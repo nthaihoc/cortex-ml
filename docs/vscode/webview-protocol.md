@@ -3,108 +3,97 @@ title: Webview Protocol
 description: Message protocol between the VS Code extension host and the topology webview.
 ---
 
-# :material-web: Webview Protocol
+# :material-swap-horizontal: Webview Protocol
 
-The VS Code extension uses a typed message protocol to communicate between the **extension host** (TypeScript) and the **webview** (React component).
+The VS Code extension is split into two parts that cannot share memory:
+1. **The Extension Host** (has access to VS Code APIs and the Language Server)
+2. **The Webview** (a secure iframe running React)
 
----
+They communicate by sending JSON messages back and forth using `postMessage`.
 
-## :material-arrow-down-bold: Host → Webview Messages
-
-### `topology-update`
-
-Sent by the extension host when the topology data changes.
-
-```typescript
-{
-  type: "topology-update",
-  topology: {
-    focus: {
-      kind: "entity" | "draft",
-      entityRef?: string,    // when kind === "entity"
-      documentUri?: string,  // when kind === "draft"
-    },
-    topology: {
-      root: string,
-      direction: "incoming" | "outgoing" | "both",
-      depth: number | null,
-      nodes: TopologyNode[],
-      relations: CatalogRelation[],
-    },
-    diagnostics: DiagnosticPayload[],
-    diagnosticGroups: DiagnosticGroup[],
-    catalogRevision: number,
-  }
-}
-```
-
-### `pin-state`
-
-Sent when the pin state changes.
-
-```typescript
-{
-  type: "pin-state",
-  pinned: boolean
-}
-```
+**Location:** `vscode-extension/src/webview/protocol.ts`
 
 ---
 
-## :material-arrow-up-bold: Webview → Host Messages
+## Host to Webview Messages
 
-### `node-click`
+The extension host sends these messages to the webview:
 
-Sent when the user clicks a topology node to navigate to it.
+### `update_topology`
+
+Sent when the topology data changes (e.g., after you type, or when the server pushes a new revision).
 
 ```typescript
 {
-  type: "node-click",
-  reference: string  // canonical entity reference
+  type: "update_topology";
+  payload: {
+    topology: FocusedTopology; // The graph data
+    revision: number;          // The catalog revision
+  };
 }
 ```
 
-### `open-source`
+### `update_diagnostics`
 
-Sent when the user requests to open a source file.
-
-```typescript
-{
-  type: "open-source",
-  uri: string  // file URI
-}
-```
-
-### `toggle-pin`
-
-Sent when the user toggles the pin focus button.
+Sent when the validation engine reports errors or warnings for the focused file.
 
 ```typescript
 {
-  type: "toggle-pin"
+  type: "update_diagnostics";
+  payload: {
+    diagnostics: CatalogDiagnostic[];
+  };
 }
 ```
 
 ---
 
-## :material-shield-check: Message Validation
+## Webview to Host Messages
 
-All messages received by the extension host are validated before processing:
+The webview sends these messages to the extension host:
 
-- Unknown message types are silently discarded
-- Required fields are checked for presence and type
-- Malformed messages log a warning and are ignored
+### `ready`
+
+Sent once when the React app has finished mounting and is ready to receive data.
+
+```typescript
+{
+  type: "ready";
+}
+```
+*When the host receives this, it immediately fetches the initial topology and sends an `update_topology` message.*
+
+### `focus_node`
+
+Sent when the user clicks a node in the ReactFlow graph.
+
+```typescript
+{
+  type: "focus_node";
+  payload: {
+    reference: string; // The canonical entity reference
+  };
+}
+```
+*When the host receives this, it asks the Language Server for the topology around this new reference.*
+
+### `open_source`
+
+Sent when the user requests to see the source YAML file for a node (e.g., via a double-click or context menu).
+
+```typescript
+{
+  type: "open_source";
+  payload: {
+    reference: string;
+  };
+}
+```
+*When the host receives this, it executes the `catalogTopology.openSource` command.*
 
 ---
 
-## :material-information-outline: camelCase Convention
+## Further Reading
 
-The webview protocol uses `camelCase` throughout (matching TypeScript conventions). The extension host maps between LSP `camelCase` custom method responses and the webview message format, while diagnostic `snake_case` provenance fields are mapped to `camelCase` equivalents.
-
----
-
-## :material-link: Further Reading
-
-- [Custom LSP Methods](../lsp/custom-methods.md)
-- [VS Code Webview API](https://code.visualstudio.com/api/extension-guides/webview)
-- [Extension Architecture](../architecture/index.md)
+- [Custom LSP Methods](../lsp/custom-methods.md) — How the host gets this data from Python
+- [Topology Viewer](../frontend/topology-viewer.md) — The React component running inside the webview

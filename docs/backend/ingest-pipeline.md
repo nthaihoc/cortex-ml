@@ -5,39 +5,52 @@ description: How catalog descriptors are parsed, normalized, and projected into 
 
 # :material-pipe: Ingest Pipeline
 
-The ingest pipeline transforms raw `catalog-info.yaml` bytes into typed, normalized `Entity` objects and `Relation` tuples. It is composed of three independent stages.
+The ingest pipeline transforms raw `catalog-info.yaml` bytes into typed `Entity` objects and `Relation` tuples. It has three stages that run in order.
+
+**Location:** `backend/app/ingest/`
+
+```mermaid
+flowchart LR
+    BYTES["Raw bytes"] --> PARSE["Stage 1\nHardenedYamlParser"]
+    PARSE --> NORM["Stage 2\nBackstageEntityNormalizer"]
+    NORM --> PROJ["Stage 3\nBackstageRelationProjector"]
+    PROJ --> OUT["Entity + Relations"]
+
+```
 
 ---
 
-## :material-numeric-1-circle: Stage 1: YAML Parsing — `HardenedYamlParser`
+## Stage 1: YAML Parsing — `HardenedYamlParser`
 
 **File:** `backend/app/ingest/parser.py`
 
-The parser enforces a **strict YAML 1.2 JSON-compatible subset** to prevent security and correctness issues.
+The parser uses a **strict YAML 1.2 JSON-compatible subset** to prevent security issues and surprising behavior.
 
 ### What it does
 
-- Decodes bytes as UTF-8
-- Parses the YAML document tree using PyYAML with a custom `JsonScalarLoader`
-- Recursively converts the node tree to Python primitives
-- Enforces all safety constraints
+1. Decodes the bytes as UTF-8
+2. Parses the YAML document tree using PyYAML with a custom `JsonScalarLoader`
+3. Recursively converts the node tree to Python primitives (strings, numbers, booleans, lists, dicts)
+4. Enforces all safety constraints (see below)
 
 ### Safety Constraints
 
-| Constraint | Error Code |
-|-----------|------------|
-| Must be valid UTF-8 | `YAML_INVALID_UTF8` |
-| Must be parseable YAML | `YAML_SYNTAX_ERROR` |
-| Must be exactly 1 document | `YAML_MULTIPLE_DOCUMENTS` |
-| Root must be a mapping | `YAML_ROOT_NOT_MAPPING` |
-| No YAML aliases/anchors | `YAML_ALIAS_UNSUPPORTED` |
-| All keys must be strings | `YAML_NON_STRING_KEY` |
-| No duplicate mapping keys | `YAML_DUPLICATE_KEY` |
-| No unsupported tags | `YAML_TAG_UNSUPPORTED` |
-| No timestamps as bare values | `YAML_TIMESTAMP_UNSUPPORTED` |
-| No NaN or Infinity values | `YAML_NON_FINITE_NUMBER` |
+The parser **rejects** YAML features that could cause security or correctness problems:
 
-### Example
+| Constraint | Error Code | Why |
+|-----------|------------|-----|
+| Must be valid UTF-8 | `YAML_INVALID_UTF8` | Prevents encoding attacks |
+| Must be valid YAML syntax | `YAML_SYNTAX_ERROR` | Basic correctness |
+| Must be exactly 1 document | `YAML_MULTIPLE_DOCUMENTS` | No `---` separators |
+| Root must be a mapping (dict) | `YAML_ROOT_NOT_MAPPING` | Cannot be a list or scalar |
+| No YAML aliases/anchors (`*x`, `&x`) | `YAML_ALIAS_UNSUPPORTED` | Prevents billion-laughs DoS |
+| All keys must be strings | `YAML_NON_STRING_KEY` | JSON compatibility |
+| No duplicate mapping keys | `YAML_DUPLICATE_KEY` | Prevents silent data loss |
+| No custom YAML tags (`!!tag`) | `YAML_TAG_UNSUPPORTED` | Prevents arbitrary types |
+| No bare timestamps | `YAML_TIMESTAMP_UNSUPPORTED` | Would silently convert strings to dates |
+| No NaN or Infinity values | `YAML_NON_FINITE_NUMBER` | Not valid JSON |
+
+### Usage
 
 ```python
 from app.ingest.parser import HardenedYamlParser, DescriptorParseError
@@ -48,40 +61,43 @@ try:
     descriptor = parser.parse(b"specVersion: vsf-idp.io/v2\n...")
 except DescriptorParseError as e:
     print(e.code)       # e.g., "YAML_SYNTAX_ERROR"
-    print(e.message)    # Human-readable message
+    print(e.message)    # Human-readable description
     print(e.line)       # Line number (if available)
     print(e.column)     # Column number (if available)
-    print(e.field_path) # JSON path (e.g., "$.spec.owners")
 ```
 
 ---
 
-## :material-numeric-2-circle: Stage 2: Normalization — `BackstageEntityNormalizer`
+## Stage 2: Normalization — `BackstageEntityNormalizer`
 
 **File:** `backend/app/ingest/normalizer.py`
 
-Normalizes a raw descriptor dict into a typed `Entity` Pydantic model with a canonical `entity_ref`.
+The normalizer converts a raw Python dict into a typed `Entity` Pydantic model with a canonical `entity_ref`.
 
-### Supported Formats
+### Format Detection
 
-=== "VSF IDP v2"
+The normalizer automatically detects the format:
 
-    - Detects `"specVersion" in descriptor`
-    - Validates `specVersion == "vsf-idp.io/v2"`
-    - Computes `reference = component:{metadata.namespace}/{spec.id}`
-    - Adds synthetic `metadata.name`, `metadata.title`, `metadata.description`
-    - Returns `Entity.model_validate(payload)`
+- If `"specVersion"` is in the dict → **VSF IDP v2** normalization
+- Otherwise → **Backstage** normalization
 
-=== "Backstage"
+### VSF IDP v2 Normalization
 
-    - Uses `apiVersion`, `kind`, `metadata.name`, `metadata.namespace`
-    - Computes `reference = {kind}:{namespace}/{name}` (all lowercased)
-    - Normalizes all reference fields in `spec` to canonical form
-    - Returns `Entity.model_validate(payload)`
+1. Validates that `specVersion == "vsf-idp.io/v2"`
+2. Computes the reference: `component:{metadata.namespace}/{spec.id}`
+3. Creates synthetic Backstage-compatible fields (`metadata.name`, `apiVersion`, `kind`)
+4. Returns a typed `Entity` object
 
-### Reference Normalization
+### Backstage Normalization
 
-`spec` fields containing entity reference strings are automatically normalized:
+1. Reads `apiVersion`, `kind`, `metadata.name`, `metadata.namespace`
+2. Computes the reference: `{kind}:{namespace}/{name}` (all lowercased)
+3. Normalizes all reference fields in `spec` to canonical form (see table below)
+4. Returns a typed `Entity` object
+
+### Reference Field Normalization
+
+These `spec` fields are automatically normalized to canonical references:
 
 | Field | Default Kind | Multiple? |
 |-------|-------------|-----------|
@@ -97,11 +113,11 @@ Normalizes a raw descriptor dict into a typed `Entity` Pydantic model with a can
 
 ---
 
-## :material-numeric-3-circle: Stage 3: Relation Projection — `BackstageRelationProjector`
+## Stage 3: Relation Projection — `BackstageRelationProjector`
 
 **File:** `backend/app/ingest/relation_projector.py`
 
-Projects declared spec fields into a list of typed `Relation` value objects.
+The projector reads the normalized `spec` fields and creates typed `Relation` value objects.
 
 ### Output
 
@@ -112,23 +128,18 @@ class ProjectionResult:
     issues: tuple[ValidationIssue, ...]
 ```
 
-### Deduplication
+### What it checks
 
-Duplicate `(source, relation_type, target)` triplets are automatically deduplicated — only the first occurrence is kept.
-
-### Self-Reference Detection
-
-If `source == target`, a `TOPOLOGY_SELF_REFERENCE` issue is generated.
-
-### Missing Target Detection
-
-If `known_entity_refs` is provided, references not in the set generate `REFERENCE_TARGET_NOT_FOUND` issues.
+| Check | Action |
+|-------|--------|
+| Duplicate `(source, relation_type, target)` | Deduplicated — only the first one is kept |
+| Entity references itself | `TOPOLOGY_SELF_REFERENCE` error (blocking) |
+| Target entity not in catalog | `REFERENCE_TARGET_NOT_FOUND` warning (non-blocking) |
 
 ---
 
-## :material-link: Further Reading
+## Further Reading
 
-- [CatalogWorkspace](catalog-workspace.md)
-- [Validation Engine](validation.md)
-- [PyYAML Documentation](https://pyyaml.org/wiki/PyYAMLDocumentation)
-- [Pydantic Documentation](https://docs.pydantic.dev/)
+- [CatalogWorkspace](catalog-workspace.md) — How the workspace uses the pipeline
+- [Validation Engine](validation.md) — Schema validation details
+- [Diagnostic Codes](../diagnostics/codes.md) — All error and warning codes
