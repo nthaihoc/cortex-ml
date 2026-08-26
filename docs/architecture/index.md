@@ -1,73 +1,37 @@
 ---
-title: Architecture
-description: How the IDP Platform is designed and how its components work together.
+title: Kiến trúc
+description: Tổng quan kiến trúc hệ thống IDP Platform.
 ---
 
-# :material-sitemap: Architecture
-
-The IDP Platform follows a simple rule: **Python owns all catalog logic, TypeScript owns all display.**
-
-This section explains how the system is organized and how data flows through it.
-
-```mermaid
-flowchart TD
-    subgraph SOURCE["📁 Local Files"]
-        FILES["catalog-info.yaml"]
-    end
-
-    subgraph CORE["🐍 Python Core"]
-        direction TB
-        FS["Filesystem Adapter\nDiscovers files, watches for changes"]
-        CW["CatalogWorkspace\nParsing → Normalization → Validation\nRelation Projection → Identity Management"]
-        FS --> CW
-    end
-
-    subgraph ADAPTERS["🔌 Adapters"]
-        direction LR
-        API["FastAPI HTTP Server\n127.0.0.1:8000"]
-        LSP["Language Server\nstdio protocol"]
-    end
-
-    subgraph VIEWERS["👁️ Viewers"]
-        direction LR
-        UI["React Browser Viewer\nVite · port 5173"]
-        EXT["VS Code Extension\nWebview + Diagnostics"]
-    end
-
-    FILES --> FS
-    CW --> API
-    CW --> LSP
-    API --> UI
-    LSP --> EXT
-
-```
-
----
+# :material-sitemap: Kiến trúc
 
 <div class="grid cards" markdown>
 
--   :material-view-dashboard-outline:{ .lg .middle } **System Overview**
+-   :material-view-dashboard-outline: **Tổng quan hệ thống**
 
-    All components, their roles, and the repository structure.
+    Bản đồ thành phần và cấu trúc repository.
 
-    [:octicons-arrow-right-24: System Overview](overview.md)
+    [:octicons-arrow-right-24: Tổng quan](overview.md)
 
--   :material-wall:{ .lg .middle } **Module Boundaries**
+-   :material-fence: **Ranh giới Module**
 
-    Rules about what each component is allowed to do.
+    Quy tắc ràng buộc của từng thành phần.
 
-    [:octicons-arrow-right-24: Module Boundaries](boundaries.md)
+    [:octicons-arrow-right-24: Ranh giới](boundaries.md)
 
--   :material-pipe:{ .lg .middle } **Data Flow**
+-   :material-transit-connection-variant: **Luồng dữ liệu**
 
-    How a `catalog-info.yaml` file goes from disk to the screen.
+    Pipeline xử lý từ YAML bytes tới `CatalogSnapshot`.
 
-    [:octicons-arrow-right-24: Data Flow](data-flow.md)
+    [:octicons-arrow-right-24: Luồng dữ liệu](data-flow.md)
 
--   :material-state-machine:{ .lg .middle } **State Management**
+-   :material-state-machine: **Quản lý trạng thái**
 
-    How the system manages entities, drafts, conflicts, and stale data.
+    `TopologyNodeState`, last-valid state, và `IdentityConflict`.
 
-    [:octicons-arrow-right-24: State Management](state.md)
+    [:octicons-arrow-right-24: Trạng thái](state.md)
 
 </div>
+
+!!! info "Nguyên tắc cốt lõi"
+    **Python sở hữu toàn bộ catalog semantics.** `CatalogWorkspace` là "deep module" — callers chỉ cần gọi `upsert_document()` / `remove_document()` và đọc `CatalogSnapshot`. Toàn bộ logic parsing, validation, relation projection, conflict detection, và focused traversal được ẩn bên trong.

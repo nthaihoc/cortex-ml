@@ -1,92 +1,62 @@
 ---
-title: Diagnostic Codes
-description: Complete reference for all 22 IDP Platform validation diagnostic codes.
+title: Bảng mã lỗi
+description: Danh sách đầy đủ các mã lỗi (stable codes) trong IDP Platform.
 ---
 
-# :material-format-list-numbered: Diagnostic Codes
+# :material-format-list-checks: Bảng mã lỗi (Error Codes)
 
-The validation engine produces 22 distinct diagnostic codes. This page lists all of them, what they mean, and how to fix them.
+Hệ thống cung cấp mã lỗi tĩnh (`code` string) để dễ phân loại và tự động xử lý.
 
----
+## :material-code-braces: Lỗi Parse YAML
 
-## Parser Diagnostics
+Phát sinh từ `HardenedYamlParser`. Đều là lỗi **blocking** (`severity: error`).
 
-These errors happen when the file is not valid YAML or violates security constraints. **All parser diagnostics are blocking errors.**
-
-| Code | Meaning | How to fix |
-|------|---------|------------|
-| `YAML_INVALID_UTF8` | File is not UTF-8 encoded | Save the file as UTF-8 |
-| `YAML_SYNTAX_ERROR` | Basic YAML syntax error | Fix the YAML formatting (indentation, quotes) |
-| `YAML_MULTIPLE_DOCUMENTS` | File contains `---` document separators | Remove the separators, keep only one document |
-| `YAML_ROOT_NOT_MAPPING` | The top level of the file is a list or scalar | Make sure the root is a dictionary/object |
-| `YAML_ALIAS_UNSUPPORTED` | File uses YAML anchors `&a` or aliases `*a` | Remove them and copy/paste values instead |
-| `YAML_NON_STRING_KEY` | A dictionary key is a number or boolean | Quote the key (e.g., `"123": value`) |
-| `YAML_DUPLICATE_KEY` | The same key appears twice in an object | Remove or rename one of the keys |
-| `YAML_TAG_UNSUPPORTED` | File uses custom tags like `!!str` | Remove the tags |
-| `YAML_TIMESTAMP_UNSUPPORTED` | Value looks like an unquoted timestamp | Put quotes around the timestamp |
-| `YAML_NON_FINITE_NUMBER` | Contains `NaN` or `Infinity` | Remove or quote these values |
-
----
-
-## Schema Diagnostics
-
-These errors happen when the YAML is valid, but the content violates the expected schema. **All schema diagnostics are blocking errors.**
-
-| Code | Meaning | How to fix |
-|------|---------|------------|
-| `SCHEMA_SPEC_VERSION_INVALID` | Unknown `specVersion` | Must be `vsf-idp.io/v2` |
-| `SCHEMA_API_VERSION_REQUIRED` | Missing `apiVersion` (Backstage) | Add `apiVersion: backstage.io/v1alpha1` |
-| `SCHEMA_KIND_REQUIRED` | Missing `kind` (Backstage) | Add `kind: Component` (or similar) |
-| `SCHEMA_METADATA_REQUIRED` | Missing `metadata` object | Add a `metadata` section |
-| `SCHEMA_METADATA_NAME_REQUIRED` | Missing `metadata.name` (Backstage) | Add `name` under `metadata` |
-| `SCHEMA_SPEC_INVALID` | `spec` is not an object | Change `spec` to be an object/dictionary |
-| `SCHEMA_FIELD_REQUIRED` | A required field is missing | Add the required field (e.g., `techlead` owner) |
-| `SCHEMA_FIELD_INVALID` | Field has wrong type or format | Correct the format (e.g., check regex constraints) |
+| Code | Ý nghĩa |
+|---|---|
+| `YAML_INVALID_UTF8` | File không encode bằng UTF-8. |
+| `YAML_SYNTAX_ERROR` | Lỗi cú pháp cơ bản của YAML. |
+| `YAML_MULTIPLE_DOCUMENTS` | File chứa nhiều document (có dấu `---`). |
+| `YAML_ROOT_NOT_MAPPING` | Gốc của YAML không phải là dict/object. |
+| `YAML_ALIAS_UNSUPPORTED` | Cố tình sử dụng YAML aliases (khóa `*` hoặc `&`). |
+| `YAML_NON_STRING_KEY` | Key của dict không phải chuỗi. |
+| `YAML_DUPLICATE_KEY` | Có key bị trùng lặp trong cùng một object. |
+| `YAML_TAG_UNSUPPORTED` | Dùng thẻ YAML custom (như `!!type`). |
+| `YAML_TIMESTAMP_UNSUPPORTED` | Khai báo ngày giờ (timestamp bare value) — phải bọc trong chuỗi. |
+| `YAML_NON_FINITE_NUMBER` | Sử dụng số vô cực hoặc NaN. |
 
 ---
 
-## Reference Diagnostics
+## :material-file-document-outline: Lỗi Validation Schema
 
-These diagnostics relate to entity references.
+Phát sinh từ `CatalogValidationEngine`. Hầu hết là lỗi **blocking** (`severity: error`).
 
-| Code | Severity | Meaning | How to fix |
-|------|----------|---------|------------|
-| `REFERENCE_INVALID` | :material-close-circle:{ .error } Error (Blocking) | Reference syntax is malformed | Use format `kind:namespace/name` |
-| `REFERENCE_TARGET_NOT_FOUND` | :material-alert:{ .warning } Warning | Target entity does not exist | Create the target entity, or check for typos |
-
----
-
-## Topology Diagnostics
-
-These diagnostics relate to graph connections.
-
-| Code | Severity | Meaning | How to fix |
-|------|----------|---------|------------|
-| `TOPOLOGY_SELF_REFERENCE` | :material-close-circle:{ .error } Error (Blocking) | Entity declares a relation to itself | Remove the self-referencing topology entry |
+| Code | Ý nghĩa |
+|---|---|
+| `SCHEMA_MISSING_VERSION` | Thiếu `specVersion` (VSF) hoặc `apiVersion` (Backstage). |
+| `SCHEMA_FIELD_REQUIRED` | Thiếu một trường bắt buộc (ví dụ `spec.name`, `metadata.namespace`). |
+| `SCHEMA_INVALID_TYPE` | Trường có kiểu dữ liệu sai (ví dụ `spec.id` phải là string, lại truyền mảng). |
+| `SCHEMA_INVALID_FORMAT` | Giá trị chuỗi không khớp regex quy định. |
+| `SCHEMA_UNSUPPORTED_TYPE` | `spec.type` không nằm trong danh sách hỗ trợ (cho VSF v2). |
+| `SCHEMA_OWNER_REQUIRED` | Cấu trúc owners không có ít nhất một `techlead`. |
 
 ---
 
-## Identity Diagnostics
+## :material-graph: Lỗi Topology & Reference
 
-These diagnostics happen during identity resolution (after validation).
+Phát sinh trong quá trình Resolve hoặc Projection.
 
-| Code | Severity | Meaning | How to fix |
-|------|----------|---------|------------|
-| `ENTITY_DUPLICATE_REF` | :material-close-circle:{ .error } Error (Blocking) | Multiple files claim the same reference | Change `metadata.namespace` or ID in one file |
-
----
-
-## File Diagnostics
-
-These diagnostics relate to filesystem limits.
-
-| Code | Severity | Meaning | How to fix |
-|------|----------|---------|------------|
-| `CATALOG_DESCRIPTOR_TOO_LARGE` | :material-close-circle:{ .error } Error (Blocking) | File exceeds the 1 MB limit | Split the catalog definitions, or reduce description size |
+| Code | Severity | Blocking | Ý nghĩa |
+|---|---|---|---|
+| `REFERENCE_INVALID` | `error` | ✅ Có | Chuỗi reference (vd `spec.topology[].ref`) không đúng định dạng. |
+| `TOPOLOGY_SELF_REFERENCE` | `warning` | ❌ Không | Entity đang tạo relation tới chính nó. |
+| `REFERENCE_TARGET_NOT_FOUND` | `warning` | ❌ Không | Target reference không tồn tại trong `CatalogSnapshot`. |
+| `ENTITY_DUPLICATE_REF` | `error` | ✅ Có | Hai hoặc nhiều file cùng định nghĩa chung một canonical reference (`IdentityConflict`). |
 
 ---
 
-<style>
-.error { color: #ef4444; }
-.warning { color: #f59e0b; }
-</style>
+## :material-folder: Lỗi Filesystem
+
+| Code | Severity | Ý nghĩa |
+|---|---|---|
+| `CATALOG_DESCRIPTOR_TOO_LARGE` | `error` | File vượt quá 1MB, bị bỏ qua. |
+| `CATALOG_ROOT_NOT_FOUND` | `error` | Thư mục Catalog Root cấu hình không tồn tại. |

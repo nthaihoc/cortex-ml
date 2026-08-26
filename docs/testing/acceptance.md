@@ -1,47 +1,16 @@
 ---
-title: Contract Tests
-description: Verifying the JSON API payloads stay in sync across components.
+title: Phạm vi chấp nhận
+description: Các tiêu chí chấp nhận (Acceptance Criteria).
 ---
 
-# :material-handshake-outline: Contract Tests
+# :material-checkbox-marked-circle-outline: Phạm vi chấp nhận (Acceptance)
 
-Because the IDP Platform is split between Python (backend) and TypeScript (frontend/extension), we need to ensure they agree on the JSON data formats.
+Bất kỳ thay đổi lớn (PR) nào vào hệ thống đều phải vượt qua bộ Acceptance Criteria sau:
 
-We use **JSON Contracts** to enforce this.
-
-**Location:** `contracts/examples/`
-
----
-
-## How it Works
-
-Instead of the backend generating JSON and hoping the frontend can parse it, we store explicit JSON examples in the repo.
-
-Both the backend and the frontend test suites run against these examples:
-
-1. **Backend Tests:** The backend uses `pytest` to generate a snapshot and asserts that the resulting JSON exactly matches the example files.
-2. **Frontend Tests:** The frontend uses `vitest` to parse the example files and asserts that they successfully deserialize into the expected TypeScript types.
-
----
-
-## Contract Files
-
-The contract files live in `contracts/examples/`:
-
-- `snapshot_v1.json`: Example of a full `/api/v1/catalog/snapshot` response.
-- `topology_v1.json`: Example of a `/api/v1/catalog/topology` response.
-- `diagnostics_v1.json`: Example of a `/api/v1/catalog/diagnostics` response.
-- `event_v1.json`: Example of a single SSE event payload.
-
----
-
-## Modifying the API
-
-If you need to change a field in the API (e.g., adding a new `provisional` flag to relations):
-
-1. **Update Python:** Update the Pydantic models in `backend/app/api/schemas.py`.
-2. **Update TypeScript:** Update the interfaces in `frontend/src/localCatalog/types.ts`.
-3. **Update Contracts:** Manually edit the JSON files in `contracts/examples/` to include your new field.
-4. **Run Tests:** Run both test suites to ensure both sides agree with the new contract.
-
-If you skip step 3, the backend tests will fail because its output no longer matches the contract.
+| STT | Core Scenario | Kết quả kỳ vọng |
+|---|---|---|
+| 1 | Mở VS Code vào thư mục trống. Tạo file YAML v2. Gõ sai `spec.type`. | LSP Diagnostic hiện ngay lỗi sau 300ms. Lỗi là `SCHEMA_UNSUPPORTED_TYPE`. |
+| 2 | Sửa `spec.type` lại cho đúng, gõ tiếp relation trỏ tới `component:a/b`. | Lỗi cũ mất đi. Báo cảnh báo (Warning) `REFERENCE_TARGET_NOT_FOUND`. |
+| 3 | Mở web browser `TopologyViewer`. Tạo file YAML mới trên disk. | Browser tự động thêm node mới lên biểu đồ mà không cần user refresh trang. |
+| 4 | Copy paste 1 file YAML làm hai bản (Xung đột định danh). | Graph đỏ lên, báo Conflict. Extension hiện 2 errors vào cả 2 file copy. |
+| 5 | Gửi PUT API (sửa Entity) kèm `expected_version` cũ (đã có request ghi trước đó). | Server từ chối, trả về HTTP 409 (Optimistic concurrency). |

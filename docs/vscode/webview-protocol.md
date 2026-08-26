@@ -1,99 +1,86 @@
 ---
-title: Webview Protocol
-description: Message protocol between the VS Code extension host and the topology webview.
+title: Giao thức Webview
+description: Định dạng message trao đổi giữa Webview và Extension Host.
 ---
 
-# :material-swap-horizontal: Webview Protocol
+# :material-api: Giao thức Webview
 
-The VS Code extension is split into two parts that cannot share memory:
-1. **The Extension Host** (has access to VS Code APIs and the Language Server)
-2. **The Webview** (a secure iframe running React)
+VS Code Extension hiển thị đồ thị qua một Webview sidebar. Vì webview chạy trong môi trường sandbox riêng, nó giao tiếp với Extension Host (nơi giữ kết nối tới LSP server) thông qua cơ chế Message Passing.
 
-They communicate by sending JSON messages back and forth using `postMessage`.
+Tất cả message sử dụng kiểu `camelCase`.
 
-**Location:** `vscode-extension/src/webview/protocol.ts`
+## :material-arrow-right: Từ Webview tới Extension (Requests)
 
----
+Khi webview cần hành động, nó gọi `vscode.postMessage(msg)`:
 
-## Host to Webview Messages
+### `fetchTopology`
 
-The extension host sends these messages to the webview:
+Yêu cầu lấy topology mới nhất (thường gửi khi webview vừa load xong).
 
-### `update_topology`
-
-Sent when the topology data changes (e.g., after you type, or when the server pushes a new revision).
-
-```typescript
-{
-  type: "update_topology";
-  payload: {
-    topology: FocusedTopology; // The graph data
-    revision: number;          // The catalog revision
-  };
-}
+```json
+{ "command": "fetchTopology" }
 ```
 
-### `update_diagnostics`
+### `changeRoot`
 
-Sent when the validation engine reports errors or warnings for the focused file.
+Yêu cầu đổi root entity. Gửi khi user click vào một node trên biểu đồ.
 
-```typescript
-{
-  type: "update_diagnostics";
-  payload: {
-    diagnostics: CatalogDiagnostic[];
-  };
-}
+```json
+{ "command": "changeRoot", "reference": "component:platform/auth-service" }
 ```
 
----
+### `openDocument`
 
-## Webview to Host Messages
+Yêu cầu mở file tương ứng với entity reference trong trình soạn thảo.
 
-The webview sends these messages to the extension host:
-
-### `ready`
-
-Sent once when the React app has finished mounting and is ready to receive data.
-
-```typescript
-{
-  type: "ready";
-}
+```json
+{ "command": "openDocument", "reference": "component:platform/auth-service" }
 ```
-*When the host receives this, it immediately fetches the initial topology and sends an `update_topology` message.*
 
-### `focus_node`
+### `log`
 
-Sent when the user clicks a node in the ReactFlow graph.
+Ghi log từ React webview vào Output panel của extension.
 
-```typescript
-{
-  type: "focus_node";
-  payload: {
-    reference: string; // The canonical entity reference
-  };
-}
+```json
+{ "command": "log", "message": "Component mounted" }
 ```
-*When the host receives this, it asks the Language Server for the topology around this new reference.*
-
-### `open_source`
-
-Sent when the user requests to see the source YAML file for a node (e.g., via a double-click or context menu).
-
-```typescript
-{
-  type: "open_source";
-  payload: {
-    reference: string;
-  };
-}
-```
-*When the host receives this, it executes the `catalogTopology.openSource` command.*
 
 ---
 
-## Further Reading
+## :material-arrow-left: Từ Extension tới Webview (Events)
 
-- [Custom LSP Methods](../lsp/custom-methods.md) — How the host gets this data from Python
-- [Topology Viewer](../frontend/topology-viewer.md) — The React component running inside the webview
+Extension Host gửi dữ liệu vào Webview thông qua `webview.postMessage(msg)`:
+
+### `updateTopology`
+
+Cập nhật biểu đồ mới. Kích hoạt khi có dữ liệu từ LSP method `catalog/topologyForDocument` hoặc trả lời cho `changeRoot`.
+
+```json
+{
+  "command": "updateTopology",
+  "topology": {
+    "root": "component:platform/payment-gateway",
+    "direction": "both",
+    "depth": 1,
+    "nodes": { ... },
+    "relations": [ ... ]
+  }
+}
+```
+
+### `pinStateChanged`
+
+Báo cho Webview biết trạng thái Pin (ghim) đã thay đổi (người dùng bấm nút Pin trên header của view).
+
+```json
+{
+  "command": "pinStateChanged",
+  "isPinned": true
+}
+```
+
+---
+
+## :material-shield-check: Validation
+
+Cả Webview và Extension Host đều validate thông điệp nhận được để tránh lỗi runtime (VD: thiếu field, sai type). Extension kiểm tra type safety cho mọi payload đến từ webview.

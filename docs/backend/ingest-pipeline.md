@@ -1,145 +1,117 @@
 ---
 title: Ingest Pipeline
-description: How catalog descriptors are parsed, normalized, and projected into relations.
+description: Chi tiết pipeline xử lý YAML — từ bytes tới NormalizedDescriptor.
 ---
 
 # :material-pipe: Ingest Pipeline
 
-The ingest pipeline transforms raw `catalog-info.yaml` bytes into typed `Entity` objects and `Relation` tuples. It has three stages that run in order.
-
-**Location:** `backend/app/ingest/`
+Ingest pipeline biến bytes từ file `catalog-info.yaml` thành `NormalizedDescriptor` và `Relation` objects. Pipeline gồm 3 giai đoạn tuần tự:
 
 ```mermaid
 flowchart LR
-    BYTES["Raw bytes"] --> PARSE["Stage 1\nHardenedYamlParser"]
-    PARSE --> NORM["Stage 2\nBackstageEntityNormalizer"]
-    NORM --> PROJ["Stage 3\nBackstageRelationProjector"]
-    PROJ --> OUT["Entity + Relations"]
-
+    A["bytes"] -->|parse| B["dict"]
+    B -->|normalize| C["NormalizedDescriptor"]
+    C -->|project| D["Relation[]"]
 ```
 
 ---
 
-## Stage 1: YAML Parsing — `HardenedYamlParser`
+## :material-code-braces: `HardenedYamlParser`
 
 **File:** `backend/app/ingest/parser.py`
 
-The parser uses a **strict YAML 1.2 JSON-compatible subset** to prevent security issues and surprising behavior.
+Chuyển đổi YAML bytes sang Python dict, áp dụng **YAML 1.2 JSON-compatible subset**. Tất cả lỗi parse được gói trong `DescriptorParseError` với mã lỗi ổn định (stable error code).
 
-### What it does
+### Quy tắc reject
 
-1. Decodes the bytes as UTF-8
-2. Parses the YAML document tree using PyYAML with a custom `JsonScalarLoader`
-3. Recursively converts the node tree to Python primitives (strings, numbers, booleans, lists, dicts)
-4. Enforces all safety constraints (see below)
-
-### Safety Constraints
-
-The parser **rejects** YAML features that could cause security or correctness problems:
-
-| Constraint | Error Code | Why |
-|-----------|------------|-----|
-| Must be valid UTF-8 | `YAML_INVALID_UTF8` | Prevents encoding attacks |
-| Must be valid YAML syntax | `YAML_SYNTAX_ERROR` | Basic correctness |
-| Must be exactly 1 document | `YAML_MULTIPLE_DOCUMENTS` | No `---` separators |
-| Root must be a mapping (dict) | `YAML_ROOT_NOT_MAPPING` | Cannot be a list or scalar |
-| No YAML aliases/anchors (`*x`, `&x`) | `YAML_ALIAS_UNSUPPORTED` | Prevents billion-laughs DoS |
-| All keys must be strings | `YAML_NON_STRING_KEY` | JSON compatibility |
-| No duplicate mapping keys | `YAML_DUPLICATE_KEY` | Prevents silent data loss |
-| No custom YAML tags (`!!tag`) | `YAML_TAG_UNSUPPORTED` | Prevents arbitrary types |
-| No bare timestamps | `YAML_TIMESTAMP_UNSUPPORTED` | Would silently convert strings to dates |
-| No NaN or Infinity values | `YAML_NON_FINITE_NUMBER` | Not valid JSON |
-
-### Usage
-
-```python
-from app.ingest.parser import HardenedYamlParser, DescriptorParseError
-
-parser = HardenedYamlParser()
-
-try:
-    descriptor = parser.parse(b"specVersion: vsf-idp.io/v2\n...")
-except DescriptorParseError as e:
-    print(e.code)       # e.g., "YAML_SYNTAX_ERROR"
-    print(e.message)    # Human-readable description
-    print(e.line)       # Line number (if available)
-    print(e.column)     # Column number (if available)
-```
+| Quy tắc | Mã lỗi | Lý do |
+|---|---|---|
+| Không phải UTF-8 | `YAML_INVALID_UTF8` | Bảo vệ xử lý chuỗi |
+| Syntax error | `YAML_SYNTAX_ERROR` | YAML không hợp lệ |
+| Nhiều document | `YAML_MULTIPLE_DOCUMENTS` | Một file = một descriptor |
+| Root không phải mapping | `YAML_ROOT_NOT_MAPPING` | Descriptor phải là object |
+| YAML alias (`*anchor`) | `YAML_ALIAS_UNSUPPORTED` | Ngăn circular reference |
+| Mapping key không phải string | `YAML_NON_STRING_KEY` | JSON-compatible subset |
+| Duplicate mapping key | `YAML_DUPLICATE_KEY` | Tránh mất dữ liệu |
+| YAML tag (`!!type`) | `YAML_TAG_UNSUPPORTED` | Hạn chế tính năng YAML |
+| Timestamp bare value | `YAML_TIMESTAMP_UNSUPPORTED` | Phải dùng quoted string |
+| NaN / Infinity | `YAML_NON_FINITE_NUMBER` | JSON không hỗ trợ |
 
 ---
 
-## Stage 2: Normalization — `BackstageEntityNormalizer`
+## :material-swap-horizontal: `BackstageEntityNormalizer`
 
 **File:** `backend/app/ingest/normalizer.py`
 
-The normalizer converts a raw Python dict into a typed `Entity` Pydantic model with a canonical `entity_ref`.
+Chuyển đổi `dict` thành `NormalizedDescriptor` (Pydantic model). Xử lý cả hai format:
 
-### Format Detection
+### Xử lý VSF IDP v2
 
-The normalizer automatically detects the format:
+1. Đọc `metadata.domain`, `metadata.system`, `metadata.namespace`
+2. Chuyển đổi `spec.id` → `metadata.name`, `spec.name` → `metadata.title`
+3. Set `apiVersion` = `"vsf-idp.io/v2"`, `kind` = `"Component"`
+4. Tính canonical `EntityReference`: `component:{namespace}/{id}`
 
-- If `"specVersion"` is in the dict → **VSF IDP v2** normalization
-- Otherwise → **Backstage** normalization
+### Xử lý Backstage
 
-### VSF IDP v2 Normalization
+1. Đọc `apiVersion`, `kind`, `metadata.name`, `metadata.namespace` (mặc định `"default"`)
+2. Tính canonical `EntityReference`: `{kind}:{namespace}/{name}` (lowercase)
 
-1. Validates that `specVersion == "vsf-idp.io/v2"`
-2. Computes the reference: `component:{metadata.namespace}/{spec.id}`
-3. Creates synthetic Backstage-compatible fields (`metadata.name`, `apiVersion`, `kind`)
-4. Returns a typed `Entity` object
+### Lỗi normalization
 
-### Backstage Normalization
-
-1. Reads `apiVersion`, `kind`, `metadata.name`, `metadata.namespace`
-2. Computes the reference: `{kind}:{namespace}/{name}` (all lowercased)
-3. Normalizes all reference fields in `spec` to canonical form (see table below)
-4. Returns a typed `Entity` object
-
-### Reference Field Normalization
-
-These `spec` fields are automatically normalized to canonical references:
-
-| Field | Default Kind | Multiple? |
-|-------|-------------|-----------|
-| `spec.owner` | `group` | No |
-| `spec.system` | `system` | No |
-| `spec.domain` | `domain` | No |
-| `spec.parent` | `group` | No |
-| `spec.dependsOn[]` | `component` | Yes |
-| `spec.providesApis[]` | `api` | Yes |
-| `spec.consumesApis[]` | `api` | Yes |
-| `spec.publishesTo[]` | `event` | Yes |
-| `spec.consumesFrom[]` | `event` | Yes |
+| Lỗi | `DescriptorNormalizationError` |
+|---|---|
+| Thiếu `apiVersion` hoặc `kind` | Cho Backstage descriptor |
+| Thiếu `metadata.namespace` hoặc `spec.id` | Cho VSF v2 descriptor |
+| Segment không hợp lệ (regex `^[a-z0-9][a-z0-9._-]{0,62}$`) | Cho cả hai |
 
 ---
 
-## Stage 3: Relation Projection — `BackstageRelationProjector`
+## :material-relation-many-to-many: `BackstageRelationProjector`
 
 **File:** `backend/app/ingest/relation_projector.py`
 
-The projector reads the normalized `spec` fields and creates typed `Relation` value objects.
+Chiếu declared fields trong `spec` thành typed `Relation` objects.
 
-### Output
+### Spec fields → `RelationType`
 
-```python
-@dataclass(frozen=True, slots=True)
-class ProjectionResult:
-    relations: tuple[Relation, ...]
-    issues: tuple[ValidationIssue, ...]
-```
+| Spec Field | `RelationType` | Default Kind | Multiple? |
+|---|---|---|---|
+| `spec.system` | `partOf` | `system` | Không |
+| `spec.domain` | `partOf` | `domain` | Không |
+| `spec.parent` | `partOf` | `group` | Không |
+| `spec.dependsOn[]` | `dependsOn` | `component` | Có |
+| `spec.providesApis[]` | `providesApi` | `api` | Có |
+| `spec.consumesApis[]` | `consumesApi` | `api` | Có |
+| `spec.publishesTo[]` | `publishesTo` | `event` | Có |
+| `spec.consumesFrom[]` | `consumesFrom` | `event` | Có |
 
-### What it checks
+### Topology fields (VSF v2 `spec.topology[]`)
 
-| Check | Action |
-|-------|--------|
-| Duplicate `(source, relation_type, target)` | Deduplicated — only the first one is kept |
-| Entity references itself | `TOPOLOGY_SELF_REFERENCE` error (blocking) |
-| Target entity not in catalog | `REFERENCE_TARGET_NOT_FOUND` warning (non-blocking) |
+Cho VSF v2, `spec.topology[].ref` sử dụng format `type:ref`:
+
+| Type Prefix | `RelationType` | Default Kind |
+|---|---|---|
+| `system` | `partOf` | `system` |
+| `component` | `dependsOn` | `component` |
+| `resource` | `dependsOn` | `resource` |
+| `providesApis` | `providesApi` | `api` |
+| `consumesApis` | `consumesApi` | `api` |
+| `publishesTo` | `publishesTo` | `event` |
+| `consumesFrom` | `consumesFrom` | `event` |
+| `module` | `contains` | `module` |
+| `function` | `contains` | `function` |
+
+### Validation trong projection
+
+- `REFERENCE_INVALID`: Reference string không parse được
+- `TOPOLOGY_SELF_REFERENCE`: Entity tự reference chính nó
+- `REFERENCE_TARGET_NOT_FOUND`: Target không tồn tại trong `CatalogSnapshot` (warning, non-blocking)
 
 ---
 
-## Further Reading
+## :material-link: Đọc thêm
 
-- [CatalogWorkspace](catalog-workspace.md) — How the workspace uses the pipeline
-- [Validation Engine](validation.md) — Schema validation details
-- [Diagnostic Codes](../diagnostics/codes.md) — All error and warning codes
+- [`CatalogWorkspace`](catalog-workspace.md)
+- [`CatalogValidationEngine`](validation.md)
+- [Luồng dữ liệu](../architecture/data-flow.md)

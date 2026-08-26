@@ -1,62 +1,41 @@
 ---
-title: Getting Started
-description: Set up the IDP Platform on your machine and start browsing catalog topology.
+title: Bắt đầu
+description: Yêu cầu hệ thống, cài đặt, và chạy lần đầu cho IDP Platform.
 ---
 
-# :material-play-circle-outline: Getting Started
+# :material-rocket-launch-outline: Bắt đầu
 
-Welcome! This section helps you install and run the IDP Platform on your machine.
-
-The IDP Platform has **three components** you can set up:
-
-```mermaid
-flowchart LR
-    subgraph REQUIRED["Required"]
-        B["🐍 Backend\n(Python server)"]
-        F["⚛️ Frontend\n(Browser viewer)"]
-    end
-    subgraph OPTIONAL["Optional"]
-        E["💻 VS Code Extension"]
-    end
-    B --> F
-    B -.-> E
-
-```
-
-| Component | What it does | Required? |
-|-----------|-------------|-----------|
-| **Backend** | Reads catalog files, validates them, serves API | ✅ Yes |
-| **Frontend** | Shows the topology graph in your browser | ✅ Yes |
-| **VS Code Extension** | Shows diagnostics and topology inside your editor | Optional |
-
----
-
-## Where to Start
+Phần này hướng dẫn từ zero đến hệ thống chạy hoàn chỉnh trên local.
 
 <div class="grid cards" markdown>
 
--   :material-clipboard-check-outline:{ .lg .middle } **1. Check Prerequisites**
+-   :material-check-circle-outline: **Yêu cầu hệ thống**
 
-    Make sure Python 3.12+ and Node.js 20+ are installed.
+    Phiên bản phần mềm cần thiết.
 
-    [:octicons-arrow-right-24: Prerequisites](prerequisites.md)
+    [:octicons-arrow-right-24: Xem yêu cầu](prerequisites.md)
 
--   :material-download-circle-outline:{ .lg .middle } **2. Install**
+-   :material-download-circle-outline: **Hướng dẫn cài đặt**
 
-    Clone the repo and install all dependencies step by step.
+    Từng bước cho backend, frontend, và VS Code Extension.
 
-    [:octicons-arrow-right-24: Installation](installation.md)
+    [:octicons-arrow-right-24: Cài đặt](installation.md)
 
--   :material-rocket-launch-outline:{ .lg .middle } **3. Quick Start**
+-   :material-play-circle-outline: **Khởi chạy nhanh**
 
-    Start the backend and frontend, then open the topology viewer.
+    Chạy hệ thống trong dưới 5 phút.
 
-    [:octicons-arrow-right-24: Quick Start](quickstart.md)
+    [:octicons-arrow-right-24: Khởi chạy nhanh](quickstart.md)
 
--   :material-cog-outline:{ .lg .middle } **4. Configure**
+-   :material-cog-outline: **Cấu hình**
 
-    Change the catalog root, API port, and other settings.
+    Biến môi trường và tuỳ chỉnh.
 
-    [:octicons-arrow-right-24: Configuration](configuration.md)
+    [:octicons-arrow-right-24: Cấu hình](configuration.md)
 
 </div>
+
+---
+
+!!! tip "Không cần dịch vụ bên ngoài"
+    Hệ thống hoàn toàn tự chứa (self-contained). **Không cần database, message queue, container runtime, remote repository, authentication provider, hay kết nối internet** sau khi cài đặt dependency. Tích hợp Supabase là tuỳ chọn (optional) cho external catalog.

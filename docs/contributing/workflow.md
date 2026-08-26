@@ -1,69 +1,31 @@
 ---
-title: Development Workflow
-description: Branching strategy and pull request process.
+title: Quy trình phát triển
+description: Workflow đóng góp code (PR, CI).
 ---
 
-# :material-git: Development Workflow
+# :material-source-branch: Quy trình phát triển
 
-The IDP Platform follows a standard GitHub pull request workflow.
+Dự án áp dụng mô hình Pull Request (PR) chuẩn trên GitHub.
 
----
+## 1. Mở Issue (Nếu là Feature/Bug lớn)
 
-## Branching Strategy
+Vui lòng thảo luận trước khi viết code cho một tính năng lớn bằng cách mở Issue. Các thay đổi liên quan đến cấu trúc `NormalizedDescriptor` hoặc API thay đổi phải có Issue thảo luận.
 
-- **`main`**: The default branch. It is always deployable and stable.
-- **`dev`**: The active development branch. Feature branches are merged here first for integration testing.
+## 2. Rẽ nhánh (Branching)
 
-When you start a new feature or bugfix, create your branch from `dev`:
+- Checkout branch mới từ nhánh `main`.
+- Đặt tên branch: `feat/<tên-ngắn>` hoặc `fix/<tên-ngắn>` hoặc `docs/<tên-ngắn>`.
 
-```bash
-git checkout dev
-git pull
-git checkout -b feature/my-new-thing
-```
+## 3. Commit
 
-Branch naming conventions:
-- `feature/*` for new features
-- `fix/*` for bug fixes
-- `docs/*` for documentation changes
-- `chore/*` for refactoring or dependency updates
+- Cố gắng giữ cho commit nhỏ và ý nghĩa (atomic commit).
+- Message viết bằng Tiếng Anh, khuyến khích theo chuẩn [Conventional Commits](https://www.conventionalcommits.org/).
 
----
+## 4. Pull Request
 
-## Creating a Pull Request
+Tạo PR vào nhánh `main`. CI sẽ tự động chạy:
+- Python `pytest`
+- Typescript `npm run test`
+- Code formatter `ruff`, `black`
 
-When your code is ready:
-
-1. Push your branch to GitHub.
-2. Open a Pull Request targeting the **`dev`** branch (not `main`).
-3. Fill out the PR template.
-4. Ensure all CI checks pass (tests, linting, formatting).
-
-### The CI Pipeline
-
-Every PR runs GitHub Actions that verify:
-- Backend: `pytest` and `ruff`
-- Frontend: `vitest`, `eslint`, and `prettier`
-- VS Code: `npm test` and `eslint`
-- Contract Tests: Ensuring backend and frontend agree on API schemas
-
-Your PR must pass all CI checks before it can be merged.
-
----
-
-## Code Review
-
-All PRs require at least one approval from a repository maintainer before they can be merged.
-
-During review, maintainers will look closely at:
-- **Module Boundaries:** Did you leak Python catalog logic into TypeScript?
-- **Safety:** Does the parser still reject bad YAML?
-- **Performance:** Does this change the `O(1)` or `O(N)` characteristics of the topology graph?
-
----
-
-## Merging and Releases
-
-1. Features are merged into `dev` via "Squash and Merge".
-2. Periodically, `dev` is merged into `main` via a Release PR.
-3. Merging to `main` triggers the release pipeline (building the VS Code extension VSIX and publishing to the registry).
+Yêu cầu ít nhất 1 thành viên core (techlead) Review và Approve.

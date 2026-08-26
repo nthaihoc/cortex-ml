@@ -1,47 +1,29 @@
 ---
 title: HTTP API
-description: REST API reference for the Local Catalog Topology server.
+description: Tổng quan REST API loopback-only của IDP Platform.
 ---
 
 # :material-api: HTTP API
 
-The backend serves a loopback-only REST API at `http://127.0.0.1:8000`. This API provides catalog snapshots, topology views, diagnostics, file operations, and a real-time event stream.
-
----
-
-## Overview
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Server health and catalog statistics |
-| `/api/v1/catalog/snapshot` | GET | Full catalog state |
-| `/api/v1/catalog/topology` | GET | Focused one-hop topology view |
-| `/api/v1/catalog/diagnostics` | GET | All active validation issues |
-| `/api/v1/catalog/events` | GET | Real-time SSE change stream |
-| `/api/v1/catalog/source` | GET | Read a descriptor file |
-| `/api/v1/catalog/source` | PUT | Update a descriptor file |
-
-All endpoints return `application/json` except the SSE stream which returns `text/event-stream`.
-
----
+REST API loopback-only (`127.0.0.1`) phục vụ `TopologyViewer` trên browser. Tất cả endpoint sử dụng `snake_case` theo `openapi.yaml`.
 
 <div class="grid cards" markdown>
 
--   :material-format-list-bulleted:{ .lg .middle } **Endpoints Reference**
+-   :material-format-list-bulleted: **Tham chiếu Endpoints**
 
-    Detailed request/response docs for every endpoint.
+    Tất cả endpoints với request/response chi tiết.
 
     [:octicons-arrow-right-24: Endpoints](endpoints.md)
 
--   :material-code-json:{ .lg .middle } **Data Schemas**
+-   :material-code-json: **Data Schemas**
 
-    JSON schema definitions for all API types.
+    `CatalogEntity`, `CatalogRelation`, `TopologyNode`, và các schema khác.
 
     [:octicons-arrow-right-24: Schemas](schemas.md)
 
--   :material-broadcast:{ .lg .middle } **Server-Sent Events**
+-   :material-broadcast: **Server-Sent Events**
 
-    Real-time catalog change notifications.
+    Real-time notifications qua `CatalogChangeFeed`.
 
     [:octicons-arrow-right-24: SSE Events](events.md)
 
@@ -49,26 +31,35 @@ All endpoints return `application/json` except the SSE stream which returns `tex
 
 ---
 
-## Quick Test
+## :material-server: Tổng quan
 
-After starting the backend, test the API with curl:
+| Đặc điểm | Chi tiết |
+|---|---|
+| **Bind** | `127.0.0.1:8000` (loopback only) |
+| **CORS** | Chỉ `VITE_ORIGIN` (mặc định `http://localhost:5173`) |
+| **Auth** | Không — loopback-only by design |
+| **Contract** | `openapi/openapi.yaml` (OpenAPI 3.1) |
+| **Framework** | FastAPI |
 
-```bash
-# Health check
-curl http://127.0.0.1:8000/health
+## :material-format-list-numbered: Tóm tắt Endpoints
 
-# Get full catalog snapshot
-curl http://127.0.0.1:8000/api/v1/catalog/snapshot
-
-# Get focused topology
-curl "http://127.0.0.1:8000/api/v1/catalog/topology?root=component:platform/my-service"
-
-# Get diagnostics
-curl http://127.0.0.1:8000/api/v1/catalog/diagnostics
-```
-
----
-
-## OpenAPI Specification
-
-The full API contract is defined in `openapi/openapi.yaml` using OpenAPI 3.1 format. You can use this spec with tools like Swagger UI, Postman, or code generators.
+| Method | Path | Mô tả |
+|---|---|---|
+| `GET` | `/health` | Runtime health + revision |
+| `GET` | `/api/v1/catalog/snapshot` | `CatalogSnapshot` đầy đủ |
+| `GET` | `/api/v1/catalog/search` | Full-text search qua `CatalogSearchIndex` |
+| `GET` | `/api/v1/catalog/suggestions` | Autocomplete suggestions |
+| `GET` | `/api/v1/catalog/topology` | `FocusedTopology` one-hop |
+| `GET` | `/api/v1/catalog/diagnostics` | `CatalogDiagnostic` hiện tại |
+| `GET` | `/api/v1/catalog/events` | SSE stream |
+| `GET` | `/api/v1/catalog/source` | Đọc source YAML |
+| `POST` | `/api/v1/catalog/completion` | Completion items |
+| `GET` | `/api/v1/catalog/relation-targets` | Entity phù hợp cho relation |
+| `POST` | `/api/v1/catalog/sync-external` | Sync Supabase external catalog |
+| `POST` | `/api/v1/catalog/entities` | Tạo entity external |
+| `PUT` | `/api/v1/catalog/entities/{reference}` | Thay thế entity |
+| `DELETE` | `/api/v1/catalog/entities/{reference}` | Xóa entity |
+| `GET` | `/api/v1/catalog/entities/{reference}/source` | Đọc YAML source entity |
+| `PATCH` | `/api/v1/catalog/entities/{reference}/field` | Sửa 1 field entity |
+| `POST` | `/api/v1/catalog/entities/{reference}/owners` | Thêm owner |
+| `DELETE` | `/api/v1/catalog/entities/{reference}/owners/{index}` | Xóa owner |

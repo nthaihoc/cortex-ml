@@ -1,67 +1,48 @@
 ---
-title: Visual States
-description: Node and edge visual states used throughout the topology viewer.
+title: Trạng thái hiển thị
+description: Quy tắc màu sắc và icon cho Health, Freshness, TopologyNodeState.
 ---
 
-# :material-palette-outline: Visual States
+# :material-palette: Trạng thái hiển thị
 
-The topology viewer uses colors, borders, and icons to communicate the **health**, **freshness**, and **state** of every node.
-
-**Location:** `frontend/src/topology/` and `frontend/src/styles.css`
-
----
-
-## Health States
-
-Based on the `health` field returned by the API.
-
-| Health | Visual | Meaning |
-|--------|--------|---------|
-| **Healthy** | Normal colors | No diagnostics, or only `info` diagnostics. |
-| **Warning** | :material-alert: Yellow border | Entity has `warning` diagnostics (non-blocking). |
-| **Error** | :material-close-circle: Red border | Entity has `error` diagnostics (blocking). |
+`TopologyViewer` sử dụng màu sắc và icon nhất quán để thể hiện trạng thái entity.
 
 ---
 
-## Freshness States
+## :material-heart-pulse: `Health`
 
-Based on the `freshness` field returned by the API.
+| Giá trị | Màu | Ý nghĩa |
+|---|---|---|
+| `healthy` | 🟢 Xanh lá | Entity hợp lệ, không có lỗi |
+| `warning` | 🟡 Vàng | Có cảnh báo (VD: `REFERENCE_TARGET_NOT_FOUND`) |
+| `error` | 🔴 Đỏ | Có lỗi blocking hoặc đang ở last-valid state |
 
-| Freshness | Visual | Meaning |
-|-----------|--------|---------|
-| **Current** | Solid lines | The data matches the current file on disk. |
-| **Stale** | Dashed lines / Faded | The file was broken by a recent edit. We are showing the **last valid state**. |
+## :material-clock-outline: `Freshness`
 
----
+| Giá trị | Hiệu ứng | Ý nghĩa |
+|---|---|---|
+| `current` | Viền đặc | Dữ liệu phản ánh file hiện tại |
+| `stale` | Viền nét đứt | Giữ last-valid state, file hiện tại bị lỗi |
 
-## Node Types
+## :material-state-machine: `TopologyNodeState`
 
-Based on the `state` field of the topology node.
-
-| State | Visual | Meaning |
-|-------|--------|---------|
-| **Entity** | Solid background | A fully valid, resolved entity. |
-| **Draft** | Yellow background, dashed border | A file with blocking errors that has *never* been valid before. |
-| **Conflict** | Red background, thick border | Two or more files are fighting over this identity. |
-| **Unresolved** | Gray background, dotted border | A relation target (like `dependsOn`) that does not exist in the catalog. |
-
----
-
-## Edge Types
-
-Relations (edges) also have states based on their provenance.
-
-| State | Visual | Meaning |
-|-------|--------|---------|
-| **Valid** | Solid line | The relation was declared in a valid file. |
-| **Stale** | Dashed line | The relation was declared in a file that is now broken. |
-| **Provisional** | Dotted line | Reserved for future use (e.g., inferred relations). |
-
-When you **hover** over an edge, it highlights and displays a tooltip with the `protocol` and `reason` (if they were declared in the YAML).
+| Trạng thái | Icon | Màu nền | Mô tả |
+|---|---|---|---|
+| `entity` | ■ | Theo `Health` | `CatalogEntity` đã resolve |
+| `draft` | ◇ | Xám | `DraftEntity` — chưa bao giờ valid |
+| `conflict` | ⚠ | Đỏ nhạt | `IdentityConflict` — duplicate reference |
+| `unresolved` | ? | Xám nhạt | Relation target không tìm thấy |
 
 ---
 
-## Further Reading
+## :material-relation-many-to-many: `RelationType` Edge Styles
 
-- [State Management](../architecture/state.md) — How these states are tracked in the backend
-- [Topology Viewer](topology-viewer.md) — The ReactFlow component that renders these states
+| `RelationType` | Style | Label |
+|---|---|---|
+| `partOf` | Nét liền | "part of" |
+| `dependsOn` | Nét liền, mũi tên | "depends on" |
+| `providesApi` | Nét đứt | "provides" |
+| `consumesApi` | Nét đứt, mũi tên | "consumes" |
+| `publishesTo` | Nét chấm | "publishes to" |
+| `consumesFrom` | Nét chấm, mũi tên | "consumes from" |
+| `contains` | Nét liền mảnh | "contains" |

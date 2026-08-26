@@ -1,143 +1,153 @@
 ---
-title: Data Flow
-description: How a catalog-info.yaml file goes from disk to the screen, step by step.
+title: Luồng dữ liệu
+description: Luồng xử lý end-to-end từ file YAML tới TopologyViewer.
 ---
 
-# :material-pipe: Data Flow
+# :material-transit-connection-variant: Luồng dữ liệu
 
-This page shows exactly how data moves through the system — from a `catalog-info.yaml` file on your disk to the topology graph in your browser or editor.
+## :material-file-upload-outline: Ingest Pipeline
+
+Khi file `catalog-info.yaml` được phát hiện hoặc thay đổi, nó đi qua pipeline xử lý:
+
+```mermaid
+flowchart LR
+    A[/"catalog-info.yaml\nbytes"/] --> B["HardenedYamlParser\n.parse()"]
+    B -->|dict| C["CatalogValidationEngine\n.validate()"]
+    C --> D{blocking\nissues?}
+    D -->|Có| E["DraftEntity\nhoặc last-valid"]
+    D -->|Không| F["BackstageEntityNormalizer\n.normalize()"]
+    F -->|NormalizedDescriptor| G["BackstageRelationProjector\n.project()"]
+    G -->|relations + issues| H["CatalogWorkspace\n_entities + _relations"]
+```
 
 ---
 
-## Browser Data Flow
+## :material-step-forward: Chi tiết từng giai đoạn
 
-When you use the browser viewer, data flows through the **HTTP stack**:
+### Giai đoạn 1 — YAML Parsing (`HardenedYamlParser`)
+
+**Đầu vào:** `bytes` · **Đầu ra:** `dict[str, object]`
+
+Parser áp dụng **YAML 1.2 JSON-compatible subset** nghiêm ngặt:
+
+| Quy tắc | Mã lỗi |
+|---|---|
+| Từ chối YAML alias (ngăn circular reference) | `YAML_ALIAS_UNSUPPORTED` |
+| Từ chối mapping key không phải string | `YAML_NON_STRING_KEY` |
+| Từ chối duplicate mapping key | `YAML_DUPLICATE_KEY` |
+| Từ chối timestamp bare value | `YAML_TIMESTAMP_UNSUPPORTED` |
+| Từ chối NaN/Infinity | `YAML_NON_FINITE_NUMBER` |
+| Yêu cầu đúng 1 document | `YAML_MULTIPLE_DOCUMENTS` |
+| Root phải là mapping | `YAML_ROOT_NOT_MAPPING` |
+
+---
+
+### Giai đoạn 2 — Schema Validation (`CatalogValidationEngine`)
+
+**Đầu vào:** `dict[str, object]` · **Đầu ra:** `list[ValidationIssue]`
+
+`CatalogValidationEngine` phát hiện descriptor là **VSF IDP v2** (có `specVersion: vsf-idp.io/v2`) hay **Backstage**, rồi áp dụng schema tương ứng.
+
+=== "VSF IDP v2"
+
+    | Trường | Quy tắc |
+    |---|---|
+    | `specVersion` | Phải chính xác `"vsf-idp.io/v2"` |
+    | `metadata.namespace` | Bắt buộc, khớp `^[a-z][a-z0-9-]*$` |
+    | `metadata.system` | Bắt buộc, khớp `^[a-z][a-z0-9-]*$`, phải tồn tại trong catalog |
+    | `metadata.domain` | Bắt buộc, ≤ 128 ký tự in được |
+    | `spec.id` | Bắt buộc, khớp `^[a-z][a-z0-9-]*$` |
+    | `spec.name` | Bắt buộc, không chứa ký tự điều khiển |
+    | `spec.type` | Một trong 13 loại hỗ trợ (`service`, `gateway`, `worker`, ...) |
+    | `spec.owners.members` | Có thể rỗng; nếu không rỗng phải có ít nhất 1 `techlead` |
+    | `spec.owners.members[*].user` | Phải là email `*@vinsmartfuture.tech` |
+    | `spec.review.branch` | Bắt buộc cho `spec.type` = `service` hoặc `gateway` |
+    | `spec.topology[*]` | Mỗi item phải có `ref`; tuỳ chọn `protocol`, `reason` |
+
+=== "Backstage"
+
+    | Trường | Quy tắc |
+    |---|---|
+    | `apiVersion` | Bắt buộc, chuỗi không rỗng |
+    | `kind` | Bắt buộc, chuỗi không rỗng |
+    | `metadata` | Bắt buộc, phải là object |
+    | `metadata.name` | Bắt buộc, chuỗi không rỗng |
+    | `spec` | Nếu có, phải là object |
+
+---
+
+### Giai đoạn 3 — Normalization (`BackstageEntityNormalizer`)
+
+**Đầu vào:** `dict[str, object]` · **Đầu ra:** `NormalizedDescriptor`
+
+- Tính canonical `EntityReference` (`kind:namespace/name`)
+- Chuẩn hoá tất cả reference string trong `spec` sang dạng canonical
+- Xử lý cả VSF v2 (chuyển đổi `metadata.*` → Backstage-compatible fields) và Backstage
+
+---
+
+### Giai đoạn 4 — Relation Projection (`BackstageRelationProjector`)
+
+**Đầu vào:** `NormalizedDescriptor` · **Đầu ra:** `ProjectionResult(relations, issues, declarations)`
+
+Chiếu spec fields thành `Relation` objects với `RelationType`:
+
+| Spec Field | `RelationType` | Default Kind |
+|---|---|---|
+| `spec.system` | `partOf` | `system` |
+| `spec.domain` | `partOf` | `domain` |
+| `spec.parent` | `partOf` | `group` |
+| `spec.dependsOn[]` | `dependsOn` | `component` |
+| `spec.providesApis[]` | `providesApi` | `api` |
+| `spec.consumesApis[]` | `consumesApi` | `api` |
+| `spec.publishesTo[]` | `publishesTo` | `event` |
+| `spec.consumesFrom[]` | `consumesFrom` | `event` |
+| `spec.topology[].ref` (VSF v2) | Từ prefix `type:ref` | Theo `TOPOLOGY_FIELDS` |
+
+---
+
+## :material-broadcast: Luồng SSE Event
 
 ```mermaid
 sequenceDiagram
-    participant Disk as 📄 Disk
-    participant FS as Filesystem Adapter
-    participant CW as CatalogWorkspace
-    participant API as FastAPI Server
-    participant Browser as ⚛️ React Viewer
+    participant W as CatalogFileWatcher
+    participant R as CatalogRuntime
+    participant F as CatalogChangeFeed
+    participant C as Browser (TopologyViewer)
 
-    Note over Disk, Browser: Startup
-    FS->>Disk: Discover catalog-info.yaml files
-    Disk-->>FS: File list + content
-    FS->>CW: upsert_document() for each file
-    CW->>CW: Parse → Normalize → Validate → Store
-
-    Note over Disk, Browser: Browser opens
-    Browser->>API: GET /api/v1/catalog/topology?root=...
-    API->>CW: focused_topology()
-    CW-->>API: FocusedTopology (nodes + relations)
-    API-->>Browser: JSON response
-    Browser->>Browser: Render graph with ReactFlow
-
-    Note over Disk, Browser: File saved on disk
-    FS->>Disk: Detect change (watchfiles)
-    FS->>CW: upsert_document() with new content
-    CW->>CW: Re-validate, update state
-    API-->>Browser: SSE event: revision changed
-    Browser->>API: Re-fetch topology
-    API-->>Browser: Updated JSON
+    C->>R: GET /api/v1/catalog/events
+    R->>C: 200 OK (text/event-stream mở)
+    W->>R: File thay đổi
+    R->>R: CatalogWorkspace.upsert_document()
+    R->>F: publish(CatalogChangeNotification)
+    F->>C: SSE data: {"revision": N, "changed_source_uris": [...]}
+    C->>R: GET /api/v1/catalog/topology?root=...
+    R->>C: FocusedTopology JSON
 ```
 
 ---
 
-## VS Code Data Flow
-
-When you use the VS Code extension, data flows through the **LSP stack**:
+## :material-cloud-sync: Luồng External Catalog
 
 ```mermaid
 sequenceDiagram
-    participant Disk as 📄 Disk
-    participant Service as CatalogLanguageService
-    participant CW as CatalogWorkspace
-    participant LSP as LSP Server (pygls)
-    participant VSCode as 💻 VS Code
+    participant C as Browser / Client
+    participant R as CatalogRuntime
+    participant S as Supabase
+    participant W as CatalogWorkspace
 
-    Note over Disk, VSCode: Extension starts
-    VSCode->>LSP: initialize (workspace folders)
-    LSP->>Service: initialize()
-    Service->>Disk: Discover catalog-info.yaml files
-    Service->>CW: upsert_document() for each file
-
-    Note over Disk, VSCode: User opens a file
-    VSCode->>LSP: textDocument/didOpen
-    LSP->>Service: did_open()
-    Service->>CW: upsert_document()
-    CW->>CW: Parse → Normalize → Validate
-    Service-->>LSP: Diagnostics
-    LSP-->>VSCode: publishDiagnostics
-
-    Note over Disk, VSCode: User types (unsaved changes)
-    VSCode->>LSP: textDocument/didChange
-    LSP->>Service: did_change()
-    Service->>Service: Wait 300ms (debounce)
-    Service->>CW: upsert_document() with buffer content
-    CW->>CW: Re-validate
-    Service-->>LSP: Updated diagnostics
-    LSP-->>VSCode: publishDiagnostics + revisionChanged
-
-    Note over Disk, VSCode: User requests topology
-    VSCode->>LSP: catalog/topologyForDocument
-    LSP->>Service: topology_for_document()
-    Service->>CW: focused_topology_for_document()
-    CW-->>Service: FocusedTopology
-    Service-->>LSP: Topology + diagnostics
-    LSP-->>VSCode: JSON response
-    VSCode->>VSCode: Render in webview
+    C->>R: POST /api/v1/catalog/sync-external
+    R->>S: fetch_external_catalog()
+    S->>R: CatalogEntity[] + CatalogRelation[]
+    R->>W: adopt_external(entities, relations)
+    W->>W: Merge vào CatalogSnapshot
+    R->>C: {"status":"ok","synced_entities":N,"synced_relations":M}
 ```
 
 ---
 
-## Document Processing Pipeline
+## :material-link: Đọc thêm
 
-Every time a document enters the system (from disk or editor), it goes through the same pipeline:
-
-```mermaid
-flowchart TD
-    INPUT["Raw bytes from file or editor"] --> PARSE["1. Parse YAML\n(HardenedYamlParser)"]
-    PARSE -->|Parse error| FAIL["Record failure\n→ Draft or Stale"]
-    PARSE -->|OK| VALIDATE["2. Validate Schema\n(CatalogValidationEngine)"]
-    VALIDATE -->|Blocking errors| FAIL
-    VALIDATE -->|OK| NORMALIZE["3. Normalize Entity\n(BackstageEntityNormalizer)"]
-    NORMALIZE -->|Error| FAIL
-    NORMALIZE -->|OK| PROJECT["4. Project Relations\n(BackstageRelationProjector)"]
-    PROJECT --> RESOLVE["5. Resolve Identity\n(Authority + Conflict detection)"]
-    RESOLVE --> STORE["6. Store in Snapshot\n(Increment revision)"]
-
-```
-
-### What happens at each step:
-
-| Step | Module | Input | Output |
-|------|--------|-------|--------|
-| 1. Parse | `HardenedYamlParser` | Raw bytes | Python dict (or parse error) |
-| 2. Validate | `CatalogValidationEngine` | Python dict | `ValidationOutcome` with issues |
-| 3. Normalize | `BackstageEntityNormalizer` | Python dict | Typed `Entity` with canonical ref |
-| 4. Project | `BackstageRelationProjector` | `Entity` | List of `Relation` objects |
-| 5. Resolve | `CatalogWorkspace` | `Entity` + ref | Update candidate map, detect conflicts |
-| 6. Store | `CatalogWorkspace` | Everything | Increment revision counter |
-
----
-
-## What Happens When a File Changes
-
-When the file watcher detects a change to a `catalog-info.yaml` file:
-
-1. **Debounce** — Wait 300 ms in case more changes are coming
-2. **Read** — Read the file content from disk
-3. **Process** — Run the full pipeline above (parse → validate → normalize → project → resolve)
-4. **Notify** — Publish a `CatalogChangeNotification` with the new revision and affected URIs
-5. **SSE** — The HTTP API sends the notification to any connected browser via Server-Sent Events
-6. **LSP** — The Language Server sends a `catalog/revisionChanged` notification to VS Code
-
----
-
-## Further Reading
-
-- [CatalogWorkspace](../backend/catalog-workspace.md) — How the core module processes documents
-- [Ingest Pipeline](../backend/ingest-pipeline.md) — Details of parsing, normalization, and projection
-- [State Management](state.md) — How entities, drafts, and conflicts are tracked
+- [Ingest Pipeline chi tiết](../backend/ingest-pipeline.md)
+- [CatalogValidationEngine](../backend/validation.md)
+- [SSE Events API](../api/events.md)

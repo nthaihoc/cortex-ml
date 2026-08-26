@@ -1,61 +1,65 @@
 ---
 title: Backend
-description: Python backend components — the core of the IDP Platform.
+description: Tổng quan các module Python phía backend của IDP Platform.
 ---
 
 # :material-language-python: Backend
 
-The backend is written in Python and contains all catalog logic. It has five main modules:
+Backend là nơi chứa toàn bộ catalog semantics. Tất cả module được viết bằng Python.
 
 ```mermaid
-flowchart TD
-    subgraph BACKEND["Python Backend"]
-        CW["CatalogWorkspace\n(Core engine)"]
-        IP["Ingest Pipeline\n(Parse, normalize, project)"]
-        VE["Validation Engine\n(Schema + topology checks)"]
-        LC["Local Catalog Runtime\n(HTTP + file watcher)"]
-        LS["Language Server\n(LSP for VS Code)"]
-
-        LC --> CW
-        LS --> CW
-        CW --> IP
-        CW --> VE
+flowchart LR
+    subgraph Core["Core"]
+        WS["CatalogWorkspace"]
+        VE["CatalogValidationEngine"]
     end
 
-```
+    subgraph Ingest["Ingest Pipeline"]
+        P["HardenedYamlParser"]
+        N["BackstageEntityNormalizer"]
+        R["BackstageRelationProjector"]
+    end
 
----
+    subgraph Adapter["Adapter"]
+        HTTP["catalog_http"]
+        LSP["catalog_language_server"]
+    end
+
+    P --> N --> VE --> R --> WS
+    WS --> HTTP
+    WS --> LSP
+```
 
 <div class="grid cards" markdown>
 
--   :material-brain:{ .lg .middle } **CatalogWorkspace**
+-   :material-brain: **`CatalogWorkspace`**
 
-    The core module. All catalog state lives here.
+    Deep module quản lý toàn bộ catalog state.
 
-    [:octicons-arrow-right-24: CatalogWorkspace](catalog-workspace.md)
+    [:octicons-arrow-right-24: Chi tiết](catalog-workspace.md)
 
--   :material-pipe:{ .lg .middle } **Ingest Pipeline**
+-   :material-pipe: **Ingest Pipeline**
 
-    YAML parsing, entity normalization, and relation projection.
+    `HardenedYamlParser` → `BackstageEntityNormalizer` → `BackstageRelationProjector`
 
-    [:octicons-arrow-right-24: Ingest Pipeline](ingest-pipeline.md)
+    [:octicons-arrow-right-24: Chi tiết](ingest-pipeline.md)
 
--   :material-shield-check:{ .lg .middle } **Validation Engine**
+-   :material-check-decagram: **`CatalogValidationEngine`**
 
-    Schema validation for both VSF IDP v2 and Backstage formats.
+    Schema + topology validation cho VSF IDP v2 và Backstage.
 
-    [:octicons-arrow-right-24: Validation Engine](validation.md)
+    [:octicons-arrow-right-24: Chi tiết](validation.md)
 
--   :material-server:{ .lg .middle } **Local Catalog Runtime**
+-   :material-server: **HTTP Runtime**
 
-    HTTP server (FastAPI) and filesystem discovery.
+    `CatalogRuntime`, FastAPI, entity writes, `CatalogChangeFeed`.
 
-    [:octicons-arrow-right-24: Local HTTP Runtime](local-catalog.md)
+    [:octicons-arrow-right-24: Chi tiết](local-catalog.md)
 
--   :material-file-eye:{ .lg .middle } **File Watcher**
+-   :material-eye: **`CatalogFileWatcher`**
 
-    Detects changes to catalog files and updates the workspace.
+    Theo dõi filesystem, phát sự kiện thay đổi.
 
-    [:octicons-arrow-right-24: File Watcher](file-watcher.md)
+    [:octicons-arrow-right-24: Chi tiết](file-watcher.md)
 
 </div>

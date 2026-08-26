@@ -1,87 +1,165 @@
 ---
-title: Custom LSP Methods
-description: Custom catalog/topologyForDocument and catalog/revisionChanged methods.
+title: Custom Methods
+description: Các LSP custom methods mở rộng của CatalogLanguageServer.
 ---
 
-# :material-call-made: Custom LSP Methods
+# :material-puzzle: Custom Methods
 
-In addition to standard LSP methods, the server implements two custom methods specifically for the topology webview in VS Code.
+`CatalogLanguageServer` mở rộng LSP với 11 custom methods cho topology, field editing, owner management, relation management, và completion.
 
 ---
 
-## `catalog/topologyForDocument`
+## :material-graph: Topology
 
-**Direction:** Client (VS Code) ➔ Server (Python)
+### `catalog/topologyForDocument`
 
-This method asks the server for the topology graph centered around a specific file, even if that file is currently invalid.
+Trả về `FocusedTopology` cho document đang mở.
 
-### Request Payload
-
+**Params:**
 ```json
 {
-  "uri": "file:///path/to/catalog-info.yaml",
+  "documentUri": "file:///path/to/catalog-info.yaml",
   "direction": "both"
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `uri` | `string` | The document URI to focus on |
-| `direction` | `string` | `"incoming"`, `"outgoing"`, or `"both"` |
+**Response:** `FocusedTopology` (cùng cấu trúc với HTTP API, nhưng dùng `camelCase`).
 
-### Response Payload
+### `catalog/revisionChanged`
 
-The response contains both the topology and the diagnostics for that file.
+**Notification** (server → client) khi `CatalogWorkspace` revision thay đổi.
 
 ```json
-{
-  "topology": {
-    "root": "component:platform/my-service",
-    "direction": "both",
-    "depth": 1,
-    "nodes": { ... },
-    "relations": [ ... ]
-  },
-  "diagnostics": [
-    {
-      "code": "SCHEMA_FIELD_REQUIRED",
-      "severity": "error",
-      "message": "...",
-      "blocking": true
-    }
-  ]
-}
+{"catalogRevision": 43}
 ```
-
-If the document is a **draft** (it was never valid and has no computed entity reference yet), `topology.root` will be `null`, but the diagnostics will still be returned.
 
 ---
 
-## `catalog/revisionChanged`
+## :material-pencil: Field Editing
 
-**Direction:** Server (Python) ➔ Client (VS Code)
+### `catalog/fieldEdit`
 
-This is a **notification** (no response expected). The server sends this whenever the catalog state changes (e.g., after the 300 ms debounce when you type).
+Sửa một scalar field trong external entity descriptor.
 
-### Notification Payload
-
+**Params:**
 ```json
 {
-  "revision": 45
+  "reference": "component:platform/payment-gateway",
+  "fieldPath": "spec.name",
+  "value": "New Service Name",
+  "expectedVersion": "2026-08-26T..."
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `revision` | `integer` | The new catalog revision number |
+---
 
-### How VS Code Uses It
+## :material-account-group: Owner Management
 
-When the VS Code extension receives this notification, it tells the open webview panel to **refetch** its topology. This is what makes the topology graph update in real-time as you type, without saving the file.
+### `catalog/ownerAppend`
+
+Thêm owner member vào entity.
+
+```json
+{
+  "reference": "component:platform/payment-gateway",
+  "user": "dev@vinsmartfuture.tech",
+  "role": "maintainer",
+  "expectedVersion": "..."
+}
+```
+
+### `catalog/ownerRemove`
+
+Xóa owner member theo index.
+
+```json
+{
+  "reference": "component:platform/payment-gateway",
+  "ownerIndex": 1,
+  "expectedVersion": "..."
+}
+```
 
 ---
 
-## Further Reading
+## :material-relation-many-to-many: Relation Management
 
-- [LSP Protocol Events](protocol.md)
-- [Webview Protocol](../vscode/webview-protocol.md) — How the extension talks to the webview
+### `catalog/relationTargets`
+
+Tìm entity phù hợp cho relation type. Dùng cho autocomplete khi thêm topology entry.
+
+```json
+{
+  "query": "auth",
+  "kinds": ["component"],
+  "limit": 12
+}
+```
+
+### `catalog/relationOptions`
+
+Trả về danh sách `RelationType` options khả dụng.
+
+### `catalog/relationAppend`
+
+Thêm relation mới vào `spec.topology[]`.
+
+```json
+{
+  "reference": "component:platform/payment-gateway",
+  "ref": "component:platform/auth-service",
+  "protocol": "gRPC",
+  "reason": "Token validation",
+  "expectedVersion": "..."
+}
+```
+
+### `catalog/relationReplace`
+
+Thay thế relation tại index trong `spec.topology[]`.
+
+### `catalog/relationRemove`
+
+Xóa relation tại index trong `spec.topology[]`.
+
+---
+
+## :material-lightbulb-on: Completion
+
+### `catalog/completion`
+
+Completion items cho source creator drawer (khác với standard `textDocument/completion`).
+
+```json
+{
+  "text": "specVersion: vsf-idp.io/v2\n...",
+  "offset": 42
+}
+```
+
+Response cùng format với `POST /api/v1/catalog/completion` HTTP endpoint.
+
+---
+
+## :material-transfer: Quy ước đặt tên
+
+Tất cả custom methods sử dụng `camelCase`:
+
+| Python (`CatalogLanguageService`) | LSP Method |
+|---|---|
+| `focused_topology_for_document()` | `catalog/topologyForDocument` |
+| `entity_ref` | `entityRef` |
+| `document_version` | `documentVersion` |
+| `field_path` | `fieldPath` |
+| `expected_version` | `expectedVersion` |
+| `owner_index` | `ownerIndex` |
+
+`CatalogLanguageService` chuyển đổi tường minh giữa `snake_case` (Python) và `camelCase` (LSP/extension).
+
+---
+
+## :material-link: Đọc thêm
+
+- [Giao thức LSP](protocol.md)
+- [VS Code Extension](../vscode/index.md)
+- [HTTP Runtime](../backend/local-catalog.md)

@@ -1,52 +1,42 @@
 ---
-title: Backend Testing
-description: Running and writing tests for the Python backend.
+title: Backend Tests
+description: Cấu trúc test và lệnh chạy cho Python backend.
 ---
 
-# :material-language-python: Backend Testing
+# :material-language-python: Backend Tests
 
-The backend uses `pytest` for unit and integration testing.
+## Cấu trúc thư mục
 
-**Location:** `backend/tests/`
-
----
-
-## Running Tests
-
-Activate your virtual environment, then run:
-
-```bash
-cd idp-platform/backend
-source .venv/bin/activate
-
-# Run all tests
-python -m pytest
-
-# Run with coverage report
-python -m pytest --cov=app
-
-# Run only validation tests
-python -m pytest tests/test_validators/
+```
+backend/tests/
+├── unit/
+│   ├── test_workspace.py
+│   ├── test_validation_engine.py
+│   └── test_parser.py
+├── integration/
+│   ├── test_http_api.py
+│   └── test_language_server.py
+└── fixtures/
+    └── catalog_samples/
 ```
 
----
+## Cách chạy test
 
-## Test Structure
+Chạy toàn bộ bằng pytest:
 
-- `tests/test_ingest/` — Tests the hardened parser and normalizer (verifies bad YAML is caught)
-- `tests/test_validators/` — Tests the validation engine (checks all 22 diagnostic codes)
-- `tests/test_workspace/` — Tests the `CatalogWorkspace` state machine (conflict resolution, topology extraction)
-- `tests/test_api/` — Uses `TestClient` to test the FastAPI endpoints
-- `tests/test_lsp/` — Uses a mocked language client to test LSP standard methods
+```bash
+cd backend
+pytest
+```
 
----
+Chạy với coverage:
 
-## The "Bad YAML" Philosophy
+```bash
+pytest --cov=app --cov-report=html
+```
 
-A significant portion of the ingest tests verify that the system gracefully handles malicious or malformed YAML. We explicitly test:
-- Billion-laughs attacks (anchors/aliases)
-- Non-string keys
-- Deeply nested structures
-- Invalid UTF-8 bytes
+## Contract Testing
 
-When writing new features, always include a test case for malformed input.
+Thư mục `contracts/examples/` ở thư mục gốc chứa các file JSON chuẩn (`CatalogSnapshot`, `FocusedTopology`) để frontend và backend có thể test chung một định dạng mà không phụ thuộc lẫn nhau.
+
+Backend tự động test chống lại các JSON fixtures này trong `test_contracts.py`.

@@ -1,170 +1,115 @@
 ---
-title: State Management
-description: How the IDP Platform manages entities, drafts, conflicts, and stale data.
+title: Quản lý trạng thái
+description: TopologyNodeState, last-valid state, IdentityConflict, và revision model.
 ---
 
-# :material-state-machine: State Management
+# :material-state-machine: Quản lý trạng thái
 
-The `CatalogWorkspace` maintains all catalog state in memory. This page explains the different states an entity can be in and how transitions happen.
+## :material-swap-horizontal: Sơ đồ chuyển đổi `TopologyNodeState`
 
----
-
-## Entity Lifecycle
-
-Every `catalog-info.yaml` file goes through a lifecycle as it is discovered, edited, and validated:
+Mỗi entity reference trong hệ thống tồn tại ở một trong bốn trạng thái:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Parsed: File discovered
-    Parsed --> Valid: Passes validation
-    Parsed --> Draft: Fails validation (first time)
-    Valid --> Entity: Identity resolved (no conflict)
-    Valid --> Conflict: Another file has the same identity
-    Entity --> Stale: File edited but now invalid
-    Stale --> Entity: File fixed, passes validation again
-    Entity --> [*]: File deleted
-    Draft --> Entity: File fixed, passes validation
-    Draft --> [*]: File deleted
-    Conflict --> Entity: Conflicting file removed
+    direction TB
+    
+    [*] --> DRAFT : (1)
+    [*] --> ENTITY : (2)
+    
+    DRAFT --> ENTITY : (3)
+    
+    ENTITY --> ENTITY : (4)
+    
+    ENTITY --> CONFLICT : (5)
+    CONFLICT --> ENTITY : (6)
+    
+    DRAFT --> [*] : (7)
+    ENTITY --> [*] : (7)
+    CONFLICT --> [*] : (7)
 ```
+
+**Chú thích các sự kiện chuyển đổi:**
+
+- **(1) Khởi tạo lỗi:** File `catalog-info.yaml` lần đầu được thêm vào hệ thống nhưng không qua được bước Validation.
+- **(2) Khởi tạo hợp lệ:** File được tạo mới và vượt qua toàn bộ bước Parse & Validate.
+- **(3) Khắc phục lỗi:** Lập trình viên sửa một file đang DRAFT thành một file hợp lệ.
+- **(4) Cập nhật:** Chỉnh sửa một file hợp lệ. *(Lưu ý: Nếu cập nhật bản mới bị lỗi, hệ thống sẽ từ chối áp dụng, tiếp tục duy trì trạng thái ENTITY của bản hợp lệ cuối cùng — gọi là Last-Valid)*.
+- **(5) Trùng lặp:** Một file thứ 2 xuất hiện, có cùng định danh (`kind:namespace/name`) với entity hiện tại.
+- **(6) Giải quyết:** Xóa bớt hoặc đổi tên một trong những file gây xung đột.
+- **(7) Xóa bỏ:** File bị xóa khỏi hệ thống.
 
 ---
 
-## Node States
+## :material-tag-multiple: Bốn trạng thái `TopologyNodeState`
 
-Each entity in the topology graph has one of four states:
-
-| State | Icon | Meaning |
-|-------|------|---------|
-| **Entity** | :material-check-circle:{ style="color: #4ade80" } | Fully valid and resolved. No problems. |
-| **Draft** | :material-pencil-circle:{ style="color: #facc15" } | The file has errors and was never valid before. Shows up with limited info. |
-| **Stale** | :material-clock-alert:{ style="color: #ef4444" } | The file was valid before but is now broken. The **last valid version** is kept visible. |
-| **Conflict** | :material-alert-circle:{ style="color: #ef4444" } | Two or more files claim the same entity identity. None of them is shown. |
-| **Unresolved** | :material-help-circle:{ style="color: #fbbf24" } | A relation target that does not exist in the catalog yet. |
+| Trạng thái | Enum Value | Mô tả | `Health` | `Freshness` |
+|---|---|---|---|---|
+| **ENTITY** | `entity` | `CatalogEntity` đã resolve, có `NormalizedDescriptor` hợp lệ | `healthy` / `error` | `current` / `stale` |
+| **DRAFT** | `draft` | Document chưa bao giờ tạo ra `NormalizedDescriptor` hợp lệ | `error` | `current` |
+| **CONFLICT** | `conflict` | Hai+ document claim cùng canonical `EntityReference` | `error` | `current` |
+| **UNRESOLVED** | `unresolved` | Target của `Relation` không tìm thấy trong `CatalogSnapshot` | `warning` | `current` |
 
 ---
 
-## Internal Data Structures
+## :material-history: Last-valid State
 
-The `CatalogWorkspace` uses these internal maps to track state:
+Khi document đã từng valid (tức `CatalogEntity` đã tồn tại trong `CatalogSnapshot`) nhưng bản chỉnh sửa mới bị lỗi validation:
 
-### `_candidates_by_ref`
+1. `CatalogWorkspace` **giữ lại** `CatalogEntity` cuối cùng hợp lệ
+2. Đánh dấu `Health.error` và `Freshness.stale`
+3. `CatalogRelation` của entity này vẫn hiển thị trong `FocusedTopology`
+4. `CatalogDiagnostic` báo lỗi cho document hiện tại
 
-Maps each canonical entity reference to a dict of candidate documents:
-
-```
-"component:platform/payment-gateway" → {
-    "file:///path/to/a/catalog-info.yaml": CatalogEntity(...),
-    "file:///path/to/b/catalog-info.yaml": CatalogEntity(...)  ← conflict!
-}
-```
-
-- **1 candidate** → entity is promoted to `_entities`
-- **2+ candidates** → all are removed from `_entities`, conflict is detected
-- **0 candidates** → entity is removed entirely
-
-### `_entities`
-
-The current resolved entity map. Only contains entities with exactly one candidate (no conflicts):
-
-```
-"component:platform/payment-gateway" → CatalogEntity(health=healthy, freshness=current)
-```
-
-### `_drafts`
-
-Documents that failed validation and were never valid before:
-
-```
-"file:///path/to/broken/catalog-info.yaml" → DraftEntity(
-    display_name="broken-service",
-    entity_ref="component:platform/broken-service",  # may be null
-    health=error
-)
-```
-
-### `_document_diagnostics`
-
-Active diagnostics for each document that has problems:
-
-```
-"file:///path/to/catalog-info.yaml" → (
-    CatalogDiagnostic(code="SCHEMA_FIELD_REQUIRED", severity="error", ...),
-    CatalogDiagnostic(code="REFERENCE_INVALID", severity="error", ...),
-)
-```
+Hành vi này đảm bảo topology graph không "biến mất" khi đang chỉnh sửa file — người dùng vẫn thấy node (với trạng thái lỗi) trong khi sửa.
 
 ---
 
-## Last-Valid State (Stale Entities)
+## :material-alert: `IdentityConflict`
 
-When you edit a valid file and introduce an error, the system does **not** remove the entity immediately. Instead:
-
-1. The entity is marked as **stale** (freshness = `stale`, health = `error`)
-2. The last valid data stays visible in the topology graph
-3. All relations from this entity are also marked as stale
-4. The file's diagnostics show the current errors
-
-This gives you time to fix your changes without the entity disappearing from the graph.
-
-When you fix the error and save, the entity goes back to **healthy** and **current**.
+Khi hai document claim cùng canonical reference (ví dụ `component:platform/payment-gateway`):
 
 ```mermaid
 flowchart LR
-    A["Entity: healthy ✓"] -->|"User breaks file"| B["Entity: stale ⚠️\n(last valid data shown)"]
-    B -->|"User fixes file"| A
-    B -->|"User deletes file"| C["Entity removed"]
-
+    D1["Document A\ncatalog-info.yaml\ncomponent:platform/payment-gateway"] --> C["IdentityConflict\ncomponent:platform/payment-gateway"]
+    D2["Document B\ncatalog-info.yaml\ncomponent:platform/payment-gateway"] --> C
+    C --> DIAG["CatalogDiagnostic\nENTITY_DUPLICATE_REF\n(cho cả Document A và B)"]
 ```
 
----
-
-## Conflict Detection
-
-A conflict happens when two or more `catalog-info.yaml` files produce the same canonical entity reference.
-
-**Example:** If both `services/a/catalog-info.yaml` and `services/b/catalog-info.yaml` define `component:platform/payment-gateway`, a conflict is created.
-
-When a conflict exists:
-
-- The entity is **removed** from the snapshot
-- A **conflict node** appears in the topology graph
-- Both documents get an `ENTITY_DUPLICATE_REF` error diagnostic
-- The diagnostic tells you which other file is causing the conflict
-
-To fix a conflict, change `metadata.namespace` or `spec.id` in one of the files so they produce different canonical references.
+- Cả hai candidates được lưu trong `_candidates_by_ref[reference]`
+- `_refresh_authority()` phát hiện `len(candidates) > 1` → xóa khỏi `_entities`
+- `CatalogSnapshot.conflicts` chứa `IdentityConflict` với danh sách `DocumentProvenance`
+- **Không entity nào thắng** — phải giải quyết bằng cách xóa hoặc đổi identity một document
 
 ---
 
-## Revision Counter
+## :material-counter: Revision Model
 
-Every time the catalog state changes, the `_revision` counter increments by 1. This counter is used by:
+`CatalogWorkspace` duy trì một **revision counter** (`int`) tăng đơn điệu:
 
-- The **HTTP API** to tell clients when to refresh
-- The **SSE stream** to notify browsers of changes
-- The **LSP server** to notify VS Code of changes
+| Sự kiện | Revision |
+|---|---|
+| `upsert_document()` thành công | +1 |
+| `remove_document()` thành công | +1 |
+| `adopt_external()` (Supabase sync) | +1 |
+| Đọc `CatalogSnapshot`, `FocusedTopology` | Không thay đổi |
 
-The revision number is monotonically increasing and never resets during a session.
-
----
-
-## Snapshot
-
-At any point, you can get a **snapshot** of the entire catalog state by calling `workspace.snapshot()`. The snapshot contains:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `revision` | `int` | Current revision number |
-| `entities` | `dict[str, CatalogEntity]` | All resolved entities (keyed by canonical ref) |
-| `relations` | `tuple[CatalogRelation, ...]` | All resolved relations with health status |
-| `conflicts` | `dict[str, IdentityConflict]` | All identity conflicts |
-| `drafts` | `dict[str, DraftEntity]` | All draft entities (failed first validation) |
-| `diagnostics` | `tuple[CatalogDiagnostic, ...]` | All active diagnostics |
+Revision được đính kèm vào mọi response (`CatalogSnapshot.revision`, SSE event `revision`, API response `revision`) để client biết dữ liệu có cập nhật không.
 
 ---
 
-## Further Reading
+## :material-database: Nguồn dữ liệu (`CatalogSource`)
 
-- [CatalogWorkspace](../backend/catalog-workspace.md) — Implementation details
-- [Diagnostic Codes](../diagnostics/codes.md) — All error and warning codes
-- [Data Flow](data-flow.md) — How data moves through the pipeline
+Mỗi `CatalogEntity` có `source` xác định nguồn gốc:
+
+| `CatalogSource` | Mô tả | `DocumentProvenance.source_uri` |
+|---|---|---|
+| `local` | File `catalog-info.yaml` trên disk | `file:///path/to/catalog-info.yaml` |
+| `external` | Entity từ Supabase | `supabase://{reference}` |
+
+---
+
+## :material-link: Đọc thêm
+
+- [`CatalogWorkspace` chi tiết](../backend/catalog-workspace.md)
+- [Ranh giới Module](boundaries.md)
+- [Bảng mã Diagnostic](../diagnostics/codes.md)

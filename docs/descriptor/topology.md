@@ -1,125 +1,119 @@
 ---
-title: Topology Fields
-description: How to declare connections between services in catalog-info.yaml.
+title: Trường Topology
+description: Khai báo quan hệ giữa các entity qua spec.topology và spec fields.
 ---
 
-# :material-graph: Topology Fields
+# :material-graph: Trường Topology
 
-Topology fields declare how your service connects to other services in the catalog. These connections are shown as edges in the topology graph.
+Topology xác định quan hệ (relation) giữa các entity. Có hai cách khai báo tuỳ theo format.
 
 ---
 
-## VSF IDP v2 Topology
+## :material-new-box: VSF IDP v2 — `spec.topology[]`
 
-In VSF IDP v2, all relations are declared in the `spec.topology` array:
+VSF v2 sử dụng array `spec.topology[]` với format `type:ref`:
 
 ```yaml
+specVersion: vsf-idp.io/v2
+# ...
 spec:
   topology:
     - ref: "component:platform/auth-service"
       protocol: gRPC
-      reason: "Token validation on every request"
-    - ref: "providesApis:platform/payment-api"
-    - ref: "consumesFrom:platform/order-events"
-      protocol: Kafka
+      reason: Token validation
+    - ref: "component:platform/notification-service"
+      reason: Send payment notifications
+    - ref: "providesApis:api/payment-api"
 ```
 
-### Topology Item Fields
+### Cấu trúc mỗi item
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `ref` | `string` | ✅ | Reference to the target entity (see format below) |
-| `protocol` | `string` | — | Communication protocol (e.g., `REST`, `gRPC`, `Kafka`) |
-| `reason` | `string` | — | Why this connection exists |
+| Trường | Bắt buộc | Mô tả |
+|---|---|---|
+| `ref` | ✅ | `EntityReference` dạng `type:identity` hoặc canonical |
+| `protocol` | Không | Giao thức kết nối (VD: `gRPC`, `REST`, `Kafka`) |
+| `reason` | Không | Lý do quan hệ |
 
-### `ref` Format
+### Type prefix mapping
 
-The `ref` value uses a `{kind}:{namespace}/{name}` or `{kind}:{name}` format. The kind prefix determines the relation type:
+`BackstageRelationProjector` parse `type` từ prefix trước dấu `:` trong `ref`:
 
-| Prefix | Target Kind | Relation Type | Meaning |
-|--------|------------|---------------|---------|
-| `system:` | `system` | `partOf` | This service belongs to that system |
-| `component:` | `component` | `dependsOn` | This service depends on that service |
-| `resource:` | `resource` | `dependsOn` | This service depends on that resource |
-| `providesApis:` | `api` | `providesApi` | This service provides that API |
-| `consumesApis:` | `api` | `consumesApi` | This service consumes that API |
-| `publishesTo:` | `event` | `publishesTo` | This service publishes to that event channel |
-| `consumesFrom:` | `event` | `consumesFrom` | This service consumes from that event channel |
-| `module:` | `module` | `contains` | This service contains that module |
-| `function:` | `function` | `contains` | This service contains that function |
+| Type Prefix | `RelationType` | Default Kind |
+|---|---|---|
+| `system` | `partOf` | `system` |
+| `domain` | `partOf` | `domain` |
+| `parent` | `partOf` | `group` |
+| `component` | `dependsOn` | `component` |
+| `resource` | `dependsOn` | `resource` |
+| `providesApis` | `providesApi` | `api` |
+| `consumesApis` | `consumesApi` | `api` |
+| `publishesTo` | `publishesTo` | `event` |
+| `consumesFrom` | `consumesFrom` | `event` |
+| `module` | `contains` | `module` |
+| `function` | `contains` | `function` |
 
-!!! tip "Short form"
-    If you omit the namespace, it defaults to the entity's own `metadata.namespace`:
-    ```yaml
-    # These two are the same (when metadata.namespace is "platform"):
-    - ref: "component:platform/auth-service"
-    - ref: "component:auth-service"
-    ```
+!!! note "Case-insensitive"
+    Type prefix trong VSF v2 là case-insensitive. `Component:...` và `component:...` đều hợp lệ.
 
 ---
 
-## Backstage Topology
+## :material-swap-horizontal: Backstage — Spec Fields
 
-In Backstage format, relations are declared using separate spec fields:
+Backstage sử dụng spec fields riêng lẻ:
+
+```yaml
+apiVersion: backstage.io/v1alpha1
+kind: Component
+# ...
+spec:
+  system: platform
+  dependsOn:
+    - component:platform/auth-service
+    - component:platform/notification-service
+  providesApis:
+    - api:platform/payment-api
+  consumesApis:
+    - api:platform/config-api
+```
+
+Ngoài ra, Backstage cũng hỗ trợ `spec.topology[]` với trường `type` tường minh:
 
 ```yaml
 spec:
-  system: core-platform
-  dependsOn:
-    - component:default/auth-service
-    - resource:default/main-database
-  providesApis:
-    - api:default/payment-api
-  consumesApis:
-    - api:default/user-api
+  topology:
+    - type: component
+      ref: platform/auth-service
+      protocol: gRPC
 ```
 
-### Backstage Relation Fields
+---
 
-| Field | Default Kind | Multiple | Relation Type |
-|-------|-------------|----------|---------------|
-| `spec.system` | `system` | No (single value) | `partOf` |
-| `spec.domain` | `domain` | No | `partOf` |
-| `spec.parent` | `group` | No | `partOf` |
-| `spec.dependsOn[]` | `component` | Yes (array) | `dependsOn` |
-| `spec.providesApis[]` | `api` | Yes | `providesApi` |
-| `spec.consumesApis[]` | `api` | Yes | `consumesApi` |
-| `spec.publishesTo[]` | `event` | Yes | `publishesTo` |
-| `spec.consumesFrom[]` | `event` | Yes | `consumesFrom` |
+## :material-relation-many-to-many: Bảng `RelationType` đầy đủ
+
+| `RelationType` | Ý nghĩa | Ví dụ |
+|---|---|---|
+| `partOf` | Entity thuộc về entity khác | Service thuộc System |
+| `dependsOn` | Entity phụ thuộc entity khác | Service gọi Service khác |
+| `providesApi` | Entity cung cấp API | Service expose REST API |
+| `consumesApi` | Entity tiêu thụ API | Service gọi API bên ngoài |
+| `publishesTo` | Entity publish event | Service gửi message tới topic |
+| `consumesFrom` | Entity consume event | Service đọc message từ topic |
+| `contains` | Entity chứa entity con | Module chứa Function |
 
 ---
 
-## Relation Types
+## :material-alert-circle: Validation cho Topology
 
-The platform supports 7 relation types:
-
-| Relation Type | Meaning | Example |
-|--------------|---------|---------|
-| `partOf` | Entity belongs to a larger group | Service → System |
-| `dependsOn` | Entity depends on another entity | Service → Service |
-| `providesApi` | Entity provides an API | Service → API |
-| `consumesApi` | Entity uses an API | Service → API |
-| `publishesTo` | Entity publishes events | Service → Event Channel |
-| `consumesFrom` | Entity consumes events | Service → Event Channel |
-| `contains` | Entity contains a sub-component | Service → Module |
+| Mã lỗi | Mô tả | Blocking? |
+|---|---|---|
+| `REFERENCE_INVALID` | Reference string không parse được | ✅ |
+| `TOPOLOGY_SELF_REFERENCE` | Entity tự reference chính nó | ⚠️ Warning |
+| `REFERENCE_TARGET_NOT_FOUND` | Target không tồn tại trong `CatalogSnapshot` | ⚠️ Warning |
 
 ---
 
-## Validation Rules
+## :material-link: Đọc thêm
 
-The system checks topology entries for several problems:
-
-| Problem | Error Code | Blocking |
-|---------|-----------|----------|
-| `ref` is not a valid entity reference | `REFERENCE_INVALID` | ✅ Yes |
-| Unknown relation kind prefix | `REFERENCE_INVALID` | ✅ Yes |
-| Target entity does not exist in the catalog | `REFERENCE_TARGET_NOT_FOUND` | ❌ No (warning) |
-| Entity references itself | `TOPOLOGY_SELF_REFERENCE` | ✅ Yes |
-
----
-
-## Further Reading
-
-- [VSF IDP v2 Reference](vsf-v2.md)
-- [Backstage Compatibility](backstage.md)
-- [Diagnostic Codes](../diagnostics/codes.md)
+- [VSF IDP v2](vsf-v2.md)
+- [Quy tắc định danh](identity.md)
+- [Ingest Pipeline](../backend/ingest-pipeline.md)

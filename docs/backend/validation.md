@@ -1,117 +1,105 @@
 ---
-title: Validation Engine
-description: How the CatalogValidationEngine checks descriptors for errors.
+title: CatalogValidationEngine
+description: Schema và topology validation cho VSF IDP v2 và Backstage descriptors.
 ---
 
-# :material-shield-check: Validation Engine
+# :material-check-decagram: `CatalogValidationEngine`
 
-The `CatalogValidationEngine` validates every `catalog-info.yaml` descriptor. It checks both VSF IDP v2 and Backstage formats using a four-stage pipeline with 22 diagnostic codes.
+**File:** `backend/app/validators/engine.py`
 
-**Location:** `backend/app/validators/engine.py`
+`CatalogValidationEngine` chạy validation trên parsed descriptor, tạo ra `ValidationReport` chứa danh sách `ValidationIssue`. Đây là engine duy nhất cho cả filesystem scanning, HTTP entity writes, và LSP diagnostics.
 
 ---
 
-## Validation Pipeline
+## :material-cog: Khởi tạo
 
-```mermaid
-flowchart LR
-    D["Descriptor dict"] --> P["Stage 1: Parser\n(10 codes)"]
-    P --> S["Stage 2: Schema\n(8 codes)"]
-    S --> R["Stage 3: Reference\n(2 codes)"]
-    R --> T["Stage 4: Topology\n(1 code)"]
-    T --> O["ValidationOutcome"]
-
+```python
+engine = CatalogValidationEngine(
+    normalizer=BackstageEntityNormalizer(),
+    projector=BackstageRelationProjector(),
+    get_system_values=lambda: frozenset(known_systems),  # Tuỳ chọn
+)
 ```
 
-Each stage can produce issues. If any **blocking** issue is found, the entity is not registered in the catalog.
-
-### Stage Summary
-
-| Stage | What it checks | # Codes | All blocking? |
-|-------|---------------|---------|---------------|
-| **Parser** | YAML syntax and safety | 10 | ✅ Yes |
-| **Schema** | Required fields, field formats, types | 8 | ✅ Yes |
-| **Reference** | Entity reference syntax and targets | 2 | Mixed |
-| **Topology** | Self-references | 1 | ✅ Yes |
+Tham số `get_system_values` cho phép validate `metadata.system` tồn tại trong catalog (cho VSF v2).
 
 ---
 
-## Format-Specific Validation
+## :material-play: Luồng `validate()`
 
-The engine detects the format automatically and applies different schema rules:
+```python
+outcome: ValidationOutcome = engine.validate(
+    descriptor,
+    source_uri="file:///...",
+    relative_path="my-service/catalog-info.yaml",
+    document_version="sha256-hash",
+    known_entity_refs={"component:platform/auth-service"},
+)
+```
 
-### VSF IDP v2 Schema Checks
+`ValidationOutcome` chứa:
 
-When `specVersion` is present in the descriptor:
-
-| Check | Error Code |
-|-------|-----------|
-| `specVersion` must be `"vsf-idp.io/v2"` | `SCHEMA_SPEC_VERSION_INVALID` |
-| `metadata` must be an object | `SCHEMA_METADATA_REQUIRED` |
-| `spec` must be an object | `SCHEMA_SPEC_INVALID` |
-| `metadata.domain` must be non-blank, ≤128 chars | `SCHEMA_FIELD_REQUIRED` / `SCHEMA_FIELD_INVALID` |
-| `metadata.system` must match `^[a-z][a-z0-9-]*$` | `SCHEMA_FIELD_INVALID` |
-| `metadata.namespace` must match `^[a-z][a-z0-9-]*$` | `SCHEMA_FIELD_INVALID` |
-| `spec.type` must be a supported component type | `SCHEMA_FIELD_INVALID` |
-| `spec.id` must match `^[a-z][a-z0-9-]*$` | `SCHEMA_FIELD_INVALID` |
-| `spec.name` must not contain control characters | `SCHEMA_FIELD_INVALID` |
-| `spec.owners.members` must have ≥1 member | `SCHEMA_FIELD_REQUIRED` |
-| Each member `user` must be a `@vinsmartfuture.tech` email | `SCHEMA_FIELD_INVALID` |
-| Each member `role` must be `techlead`, `maintainer`, or `member` | `SCHEMA_FIELD_INVALID` |
-| At least one member must have `role: techlead` | `SCHEMA_FIELD_REQUIRED` |
-| `spec.review.branch` required for `service`/`gateway` | `SCHEMA_FIELD_REQUIRED` |
-| Each topology item must have `ref` | `SCHEMA_FIELD_INVALID` |
-
-### Backstage Schema Checks
-
-When no `specVersion` is present:
-
-| Check | Error Code |
-|-------|-----------|
-| `apiVersion` must be a non-empty string | `SCHEMA_API_VERSION_REQUIRED` |
-| `kind` must be a non-empty string | `SCHEMA_KIND_REQUIRED` |
-| `metadata` must be an object | `SCHEMA_METADATA_REQUIRED` |
-| `metadata.name` must be a non-empty string | `SCHEMA_METADATA_NAME_REQUIRED` |
-| `spec` (if present) must be an object | `SCHEMA_SPEC_INVALID` |
+| Field | Type | Mô tả |
+|---|---|---|
+| `entity` | `NormalizedDescriptor \| None` | `None` nếu có blocking issue |
+| `relations` | `tuple[Relation, ...]` | Quan hệ đã chiếu |
+| `report` | `ValidationReport` | Tất cả `ValidationIssue` |
 
 ---
 
-## How Validation Works
+## :material-format-list-checks: Schema Rules
 
-The engine returns a `ValidationOutcome` object:
+### VSF IDP v2 (`specVersion: vsf-idp.io/v2`)
+
+| Trường | Quy tắc | Blocking? |
+|---|---|---|
+| `specVersion` | Phải chính xác `"vsf-idp.io/v2"` | ✅ |
+| `metadata` | Bắt buộc, phải là object | ✅ |
+| `metadata.domain` | Bắt buộc, ≤ 128 ký tự in được | ✅ |
+| `metadata.system` | Bắt buộc, khớp `^[a-z][a-z0-9-]*$`, phải tồn tại trong catalog | ✅ |
+| `metadata.namespace` | Bắt buộc, khớp `^[a-z][a-z0-9-]*$` | ✅ |
+| `spec` | Bắt buộc, phải là object | ✅ |
+| `spec.type` | Một trong: `service`, `gateway`, `worker`, `batch`, `job`, `library`, `website`, `mobile-app`, `data-pipeline`, `function`, `plugin`, `tool`, `documentation`, `other`; hoặc custom khớp `^[a-z][a-z0-9-]*$` | ✅ |
+| `spec.id` | Bắt buộc, khớp `^[a-z][a-z0-9-]*$` | ✅ |
+| `spec.name` | Bắt buộc, không chứa ký tự điều khiển | ✅ |
+| `spec.owners.members` | Nếu không rỗng, phải có ≥ 1 `techlead` | ✅ |
+| `spec.owners.members[*].user` | Phải khớp `*@vinsmartfuture.tech` | ✅ |
+| `spec.owners.members[*].role` | Phải là `techlead`, `maintainer`, hoặc `member` | ✅ |
+| `spec.review.branch` | Bắt buộc khi `spec.type` = `service` hoặc `gateway` | ✅ |
+| `spec.topology[*]` | Mỗi item phải có `ref`; chỉ `protocol` và `reason` là tuỳ chọn | ✅ |
+
+### Backstage
+
+| Trường | Quy tắc | Blocking? |
+|---|---|---|
+| `apiVersion` | Bắt buộc, chuỗi không rỗng | ✅ |
+| `kind` | Bắt buộc, chuỗi không rỗng | ✅ |
+| `metadata` | Bắt buộc, phải là object | ✅ |
+| `metadata.name` | Bắt buộc, chuỗi không rỗng | ✅ |
+| `spec` | Nếu có, phải là object | ✅ |
+
+---
+
+## :material-alert-circle: `ValidationIssue`
 
 ```python
 @dataclass(frozen=True, slots=True)
-class ValidationOutcome:
-    entity: Entity | None          # None if blocking errors
-    relations: tuple[Relation, ...]
-    report: ValidationReport
+class ValidationIssue:
+    code: str           # Mã ổn định, VD: "SCHEMA_FIELD_REQUIRED"
+    severity: str       # "error" | "warning"
+    blocking: bool      # True = ngăn tạo NormalizedDescriptor
+    message: str        # Mô tả lỗi
+    provenance: DocumentProvenance
+    entity_ref: str | None
+    target_ref: str | None
+    suggested_action: str | None
+    details: dict | None
 ```
 
-- If **blocking errors** exist → `entity` is `None`, the document becomes a draft or stale
-- If **only warnings** exist → `entity` is returned, warnings appear as diagnostics
-
 ---
 
-## Issue Registry
+## :material-link: Đọc thêm
 
-All 22 diagnostic codes are defined in `backend/app/validators/registry.py`. Each code has:
-
-| Property | Description |
-|----------|-------------|
-| `code` | Unique string identifier (e.g., `YAML_SYNTAX_ERROR`) |
-| `stage` | Which validation stage produces it |
-| `default_severity` | `error` or `warning` |
-| `blocking` | Whether this prevents entity registration |
-| `order` | Sort order for consistent output |
-
-See the full list at [Diagnostic Codes](../diagnostics/codes.md).
-
----
-
-## Further Reading
-
-- [Diagnostic Codes](../diagnostics/codes.md) — Complete code reference
-- [Severity Guide](../diagnostics/severity.md) — What error vs. warning means
-- [Ingest Pipeline](ingest-pipeline.md) — Parsing and normalization
-- [CatalogWorkspace](catalog-workspace.md) — How the workspace uses validation
+- [Ingest Pipeline](ingest-pipeline.md)
+- [Bảng mã Diagnostic](../diagnostics/codes.md)
+- [Luồng dữ liệu](../architecture/data-flow.md)

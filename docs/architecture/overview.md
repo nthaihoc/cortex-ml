@@ -1,152 +1,153 @@
 ---
-title: System Overview
-description: All components of the IDP Platform, their roles, and the repository structure.
+title: Tổng quan hệ thống
+description: Bản đồ thành phần và cấu trúc repository của IDP Platform.
 ---
 
-# :material-view-dashboard-outline: System Overview
+# :material-view-dashboard-outline: Tổng quan hệ thống
 
-The IDP Platform has **eight main components** spread across Python and TypeScript.
+## :material-package-variant: Bản đồ thành phần
 
----
-
-## Component Map
-
-| Component | Location | Language | What it does |
-|-----------|----------|----------|-------------|
-| **CatalogWorkspace** | `backend/app/catalog_workspace/` | Python | The core engine — handles all catalog logic |
-| **Ingest Pipeline** | `backend/app/ingest/` | Python | Parses YAML, normalizes entities, projects relations |
-| **Validation Engine** | `backend/app/validators/` | Python | Checks descriptors for errors (schema, references, topology) |
-| **Domain Models** | `backend/app/domain/` | Python | Shared data types: Entity, EntityReference, RelationType |
-| **Local Catalog Runtime** | `backend/app/local_catalog/` | Python | HTTP server (FastAPI) + file watcher |
-| **Language Server** | `backend/app/catalog_language_server/` | Python | LSP server for VS Code integration |
-| **Frontend** | `frontend/src/` | TypeScript + React | Browser-based topology viewer |
-| **VS Code Extension** | `vscode-extension/src/` | TypeScript | Editor integration with diagnostics and webview |
+| Thành phần | Đường dẫn | Ngôn ngữ | Vai trò |
+|---|---|---|---|
+| **`CatalogWorkspace`** | `backend/app/catalog_workspace/` | Python | Core domain: toàn bộ catalog semantics |
+| **Ingest Pipeline** | `backend/app/ingest/` | Python | `HardenedYamlParser`, `BackstageEntityNormalizer`, `BackstageRelationProjector` |
+| **`CatalogValidationEngine`** | `backend/app/validators/` | Python | Schema validation (VSF v2 + Backstage) và topology validation |
+| **Domain Models** | `backend/app/domain/` | Python | `EntityReference`, `RelationType`, `NormalizedDescriptor` |
+| **`catalog_infra`** | `backend/app/catalog_infra/` | Python | `CatalogSearchIndex`, filesystem discovery, Supabase sync, completion |
+| **`catalog_http`** | `backend/app/catalog_http/` | Python | FastAPI, `CatalogRuntime`, `CatalogFileWatcher`, `CatalogChangeFeed`, entity writes |
+| **`catalog_language_server`** | `backend/app/catalog_language_server/` | Python | `CatalogLanguageServer` (pygls) + `CatalogLanguageService` qua stdio |
+| **Frontend** | `frontend/src/` | TypeScript + React | `TopologyViewer`, `HttpCatalogClient`, catalog search |
+| **VS Code Extension** | `vscode-extension/src/` | TypeScript | Editor host + LSP client + webview |
+| **OpenAPI Contract** | `openapi/openapi.yaml` | YAML | Wire contract cho HTTP API |
 
 ---
 
-## Layer Diagram
-
-The system has three layers. Each layer only talks to the layer directly below it:
+## :material-layers-outline: Sơ đồ tầng (Layer Diagram)
 
 ```mermaid
 flowchart TB
-    subgraph PRESENTATION["Presentation Layer (TypeScript)"]
+    subgraph Presentation["Presentation Layer"]
         direction LR
-        REACT["React Browser Viewer"]
-        VSCODE["VS Code Extension"]
+        FE["TopologyViewer\n(React + ReactFlow)"]
+        VSC["VS Code Extension\n+ Webview"]
     end
 
-    subgraph ADAPTER["Adapter Layer (Python)"]
+    subgraph Adapter["Adapter Layer"]
         direction LR
-        FASTAPI["FastAPI HTTP Server"]
-        PYGLS["Language Server (pygls)"]
-        WATCH["File Watcher (watchfiles)"]
+        HTTP["catalog_http\nFastAPI + CatalogFileWatcher"]
+        LSP["catalog_language_server\nstdio"]
     end
 
-    subgraph DOMAIN["Domain Layer (Python)"]
-        direction TB
-        CW["CatalogWorkspace"]
-        INGEST["Ingest Pipeline"]
-        VALID["Validation Engine"]
-        MODELS["Domain Models"]
-        CW --> INGEST
-        CW --> VALID
-        INGEST --> MODELS
-        VALID --> MODELS
+    subgraph Core["Core Domain"]
+        direction LR
+        WS["CatalogWorkspace"]
+        VE["CatalogValidationEngine"]
+        IP["Ingest Pipeline"]
     end
 
-    REACT --> FASTAPI
-    VSCODE --> PYGLS
-    FASTAPI --> CW
-    PYGLS --> CW
-    WATCH --> CW
+    subgraph Infra["Infrastructure"]
+        direction LR
+        FS["Filesystem\nDiscovery"]
+        SI["CatalogSearchIndex\nSQLite FTS5"]
+        SB["Supabase\nExternal Catalog"]
+    end
 
+    FE --> HTTP
+    VSC --> LSP
+    HTTP --> WS
+    LSP --> WS
+    WS --> VE
+    WS --> IP
+    HTTP --> SI
+    HTTP --> SB
+    HTTP --> FS
+    LSP --> FS
 ```
-
-!!! info "Why this separation matters"
-    Because Python owns all catalog logic, the browser viewer and VS Code extension always produce **the same results**. You cannot have a situation where the browser shows a valid entity but VS Code shows an error (or vice versa).
 
 ---
 
-## Repository Structure
+## :material-file-tree: Cấu trúc Repository
 
 ```
 idp-platform/
-├── .env.example                    # Environment variable template
-├── mkdocs.yml                      # Documentation configuration
+├── .env.example                    # Template biến môi trường
+├── mkdocs.yml                      # Cấu hình documentation
 │
-├── backend/                        # Python backend
+├── backend/
 │   ├── requirements.txt            # Production dependencies
-│   ├── requirements-dev.txt        # Test/lint dependencies
+│   ├── requirements-dev.txt        # Dev + test dependencies
+│   ├── pyproject.toml
 │   └── app/
-│       ├── catalog_workspace/      # ★ Core domain — all catalog logic
-│       │   ├── models.py           # Data types: CatalogEntity, Snapshot, Topology
-│       │   ├── workspace.py        # CatalogWorkspace class (580 lines)
-│       │   └── source_positions.py # Maps field paths to line/column numbers
-│       ├── ingest/                 # YAML parsing and normalization
-│       │   ├── parser.py           # HardenedYamlParser — safe YAML parsing
-│       │   ├── normalizer.py       # BackstageEntityNormalizer — entity normalization
-│       │   └── relation_projector.py  # BackstageRelationProjector — relation extraction
-│       ├── validators/             # Validation engine
-│       │   ├── engine.py           # CatalogValidationEngine (schema + topology)
-│       │   ├── registry.py         # 22 diagnostic code definitions
-│       │   └── schemas.py          # ValidationIssue, ValidationReport types
-│       ├── domain/                 # Shared domain types
-│       │   ├── entity.py           # Entity Pydantic model
-│       │   ├── enums/relation_type.py  # RelationType enum (7 types)
+│       ├── catalog_workspace/      # ★ Core domain module
+│       │   ├── models.py           # CatalogEntity, CatalogSnapshot, FocusedTopology
+│       │   ├── workspace.py        # CatalogWorkspace implementation
+│       │   └── source_positions.py # Field-path → line/column mapping
+│       ├── ingest/
+│       │   ├── parser.py           # HardenedYamlParser (YAML 1.2 JSON-subset)
+│       │   ├── normalizer.py       # BackstageEntityNormalizer
+│       │   └── relation_projector.py  # BackstageRelationProjector
+│       ├── validators/
+│       │   ├── engine.py           # CatalogValidationEngine
+│       │   ├── registry.py         # ValidationIssue factory
+│       │   └── schemas.py          # ValidationIssue, ValidationReport
+│       ├── domain/
+│       │   ├── descriptor.py       # NormalizedDescriptor (Pydantic model)
+│       │   ├── enums/relation_type.py  # RelationType enum
 │       │   └── value_objects/
-│       │       ├── entity_reference.py  # EntityReference: kind:namespace/name
+│       │       ├── entity_reference.py  # EntityReference (kind:namespace/name)
 │       │       └── relation.py          # Relation value object
-│       ├── local_catalog/          # HTTP runtime
-│       │   ├── __main__.py         # Entry: python -m app.local_catalog
-│       │   ├── api.py              # FastAPI routes (7 endpoints)
-│       │   ├── runtime.py          # LocalCatalogRuntime startup
-│       │   ├── filesystem.py       # Recursive catalog-info.yaml discovery
-│       │   ├── watcher.py          # CatalogFileWatcher with debounce
-│       │   └── events.py           # SSE change notification feed
-│       └── catalog_language_server/  # LSP server
-│           ├── __main__.py         # Entry: python -m app.catalog_language_server
-│           ├── server.py           # pygls server with LSP handlers
-│           └── service.py          # CatalogLanguageService — editor integration
+│       ├── catalog_infra/
+│       │   ├── filesystem.py       # catalog-info.yaml discovery
+│       │   ├── search_index.py     # CatalogSearchIndex (SQLite FTS5)
+│       │   ├── completion.py       # Catalog-aware completion
+│       │   └── supabase_sync.py    # External catalog fetch (read-only)
+│       ├── catalog_http/
+│       │   ├── __main__.py         # Entry point: python -m app.catalog_http
+│       │   ├── api.py              # FastAPI application factory
+│       │   ├── runtime.py          # CatalogRuntime
+│       │   ├── entity_writes.py    # Supabase write path
+│       │   ├── watcher.py          # CatalogFileWatcher
+│       │   └── events.py           # CatalogChangeFeed (SSE pub/sub)
+│       └── catalog_language_server/
+│           ├── __main__.py         # Entry point: python -m app.catalog_language_server
+│           ├── server.py           # CatalogLanguageServer (pygls)
+│           └── service.py          # CatalogLanguageService
 │
-├── frontend/                       # React browser viewer
-│   ├── package.json                # React 19, ReactFlow 11, Vite 7
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.ts
 │   └── src/
-│       ├── main.tsx                # React entry point
-│       ├── topology/               # Topology graph components
-│       │   ├── TopologyViewer.tsx   # Main viewer component
-│       │   ├── catalogSearch.ts     # Full-text entity search
-│       │   └── types.ts             # TypeScript types
-│       └── localCatalog/            # API client
-│           ├── HttpLocalCatalogClient.ts  # HTTP client for the backend
-│           └── types.ts              # Response types
+│       ├── main.tsx
+│       ├── app/App.tsx
+│       ├── catalog/
+│       │   ├── HttpCatalogClient.ts   # HTTP API client
+│       │   ├── CatalogProvider.tsx     # React context
+│       │   └── types.ts               # TypeScript types
+│       └── topology/
+│           ├── TopologyViewer.tsx      # Main component
+│           ├── topologyLayout.ts      # Graph layout algorithm
+│           ├── localContract.ts       # API type mapping
+│           └── catalogSearch.ts       # Search logic
 │
-├── vscode-extension/               # VS Code extension
-│   ├── package.json                # Extension manifest and commands
+├── vscode-extension/
+│   ├── package.json                # Extension manifest
 │   └── src/
-│       ├── extension.ts            # activate/deactivate entry
-│       ├── host/controller.ts      # Extension lifecycle controller
-│       ├── vscode/                 # VS Code API adapters
-│       │   ├── vscodeHost.ts       # VS Code API wrapper
-│       │   ├── vscodeLanguageClient.ts  # LSP client
-│       │   └── webviewHtml.ts      # Webview HTML generator
-│       └── webview/                # Topology webview app
-│           ├── WebviewApp.tsx      # React app for the webview
-│           └── protocol.ts         # Message protocol host ↔ webview
+│       ├── extension.ts            # activate/deactivate
+│       └── host/controller.ts      # Extension orchestrator
 │
 ├── openapi/
-│   └── openapi.yaml               # OpenAPI 3.1 HTTP contract
+│   └── openapi.yaml                # OpenAPI 3.1 contract
 │
 ├── contracts/
-│   └── examples/                   # JSON fixtures for contract tests
+│   └── examples/                   # Contract-tested JSON fixtures
 │
-└── site/docs/                      # This documentation
+└── site/docs/                      # ← Toàn bộ tài liệu
 ```
 
 ---
 
-## Further Reading
+## :material-link: Đọc thêm
 
-- [Module Boundaries](boundaries.md) — Rules each component must follow
-- [Data Flow](data-flow.md) — How data moves through the system
-- [State Management](state.md) — How entities, drafts, and conflicts are tracked
+- [Ranh giới Module](boundaries.md)
+- [Luồng dữ liệu](data-flow.md)
+- [Quản lý trạng thái](state.md)

@@ -1,83 +1,57 @@
 ---
-title: File Watcher
-description: How changes to catalog files are detected and processed.
+title: CatalogFileWatcher
+description: Theo dõi filesystem, phát hiện thay đổi, và kích hoạt cập nhật CatalogWorkspace.
 ---
 
-# :material-file-eye: File Watcher
+# :material-eye: `CatalogFileWatcher`
 
-The file watcher monitors the catalog root directory for changes. When a `catalog-info.yaml` file is created, modified, or deleted, the watcher updates the `CatalogWorkspace` automatically.
+**File:** `backend/app/catalog_http/watcher.py`
 
-**Location:** `backend/app/local_catalog/watcher.py`
+`CatalogFileWatcher` kết nối filesystem changes với `CatalogWorkspace`, sử dụng thư viện `watchfiles` để phát hiện thay đổi trên Catalog Root.
 
 ---
 
-## How it Works
+## :material-cog: Kiến trúc
 
 ```mermaid
-sequenceDiagram
-    participant OS as Operating System
-    participant WF as watchfiles library
-    participant CW as CatalogFileWatcher
-    participant WS as CatalogWorkspace
-
-    OS->>WF: File change event
-    WF->>CW: Change notification (path, type)
-    CW->>CW: Debounce (300ms)
-    CW->>CW: Filter: is this a catalog-info.yaml?
-    alt File created or modified
-        CW->>CW: Read file content
-        CW->>WS: upsert_document(uri, path, content)
-    else File deleted
-        CW->>WS: remove_document(uri)
-    end
-    WS->>WS: Re-validate, update state
-    WS-->>CW: Revision changed
-    CW-->>CW: Publish CatalogChangeNotification
+flowchart LR
+    FS["Filesystem\n(Catalog Root)"] -->|watchfiles| EV["WatchfilesCatalogEventSource"]
+    EV -->|create/modify/delete| W["CatalogFileWatcher"]
+    W -->|upsert_document\nremove_document| WS["CatalogWorkspace"]
+    WS -->|CatalogChangeNotification| CF["CatalogChangeFeed"]
+    CF -->|SSE| C["Browser Client"]
 ```
 
-### Key Behaviors
+---
 
-| Behavior | Detail |
-|----------|--------|
-| **Library** | Uses [`watchfiles`](https://watchfiles.helpmanual.io/) (Rust-based, cross-platform) |
-| **Debounce** | Waits **300 ms** after the last change before processing. This prevents processing partial saves. |
-| **Filtering** | Only processes files named exactly `catalog-info.yaml` |
-| **Skipped dirs** | Ignores `.git`, `.venv`, `node_modules`, `dist`, `build`, `__pycache__`, and dot-directories |
-| **Symlinks** | Not followed (security) |
-| **Large files** | Files over 1 MB are skipped |
+## :material-play: Vòng đời
+
+1. **Startup**: Quét toàn bộ Catalog Root, tìm tất cả file `catalog-info.yaml`
+2. **Initial load**: Gọi `CatalogWorkspace.upsert_document()` cho mỗi file
+3. **Watch loop**: `WatchfilesCatalogEventSource` lắng nghe filesystem events
+4. **On change**: Đọc nội dung file → `upsert_document()` hoặc `remove_document()`
+5. **Notify**: `CatalogChangeFeed` phát SSE event với revision mới
 
 ---
 
-## Change Notifications
+## :material-filter: Bộ lọc file
 
-After processing a change, the watcher publishes a `CatalogChangeNotification` containing:
-
-```python
-@dataclass
-class CatalogChangeNotification:
-    revision: int                    # New revision number
-    changed_source_uris: list[str]   # Files that were added/modified
-    removed_source_uris: list[str]   # Files that were deleted
-```
-
-This notification is consumed by:
-
-- **SSE endpoint** → pushes to connected browsers
-- **Language Server** → sends `catalog/revisionChanged` to VS Code
+| Quy tắc | Chi tiết |
+|---|---|
+| **Tên file** | Chỉ `catalog-info.yaml` |
+| **Thư mục ẩn** | Bỏ qua thư mục bắt đầu bằng `.` |
+| **Thư mục đặc biệt** | Bỏ qua `node_modules`, `__pycache__`, `.venv` |
+| **Symlink** | Không follow symlink và junction |
+| **Kích thước** | File > 1 MB → skip, phát sinh `CatalogDiagnostic` |
 
 ---
 
-## Startup vs. Runtime
+## :material-timer: Xử lý sự kiện
 
-| Phase | What happens |
-|-------|-------------|
-| **Startup** | All files are discovered and loaded. No debounce — files are processed immediately. |
-| **Runtime** | The watcher monitors for changes. Changes are debounced (300 ms) and processed individually. |
+| Sự kiện | Hành động |
+|---|---|
+| File created | Đọc bytes → `CatalogWorkspace.upsert_document()` |
+| File modified | Đọc bytes → `CatalogWorkspace.upsert_document()` |
+| File deleted | `CatalogWorkspace.remove_document()` |
 
----
-
-## Further Reading
-
-- [Local HTTP Runtime](local-catalog.md) — The runtime that starts the watcher
-- [Data Flow](../architecture/data-flow.md) — How data moves through the system
-- [SSE Events](../api/events.md) — How changes are pushed to browsers
+Tất cả events được xử lý **tuần tự** (serialized) để đảm bảo consistency với `CatalogWorkspace` (single-threaded).

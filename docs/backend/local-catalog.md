@@ -1,85 +1,112 @@
 ---
-title: Local HTTP Runtime
-description: FastAPI server, filesystem discovery, and the local catalog entry point.
+title: HTTP Runtime
+description: CatalogRuntime, FastAPI endpoints, entity writes qua Supabase, và CatalogChangeFeed.
 ---
 
-# :material-server: Local HTTP Runtime
+# :material-server: HTTP Runtime (`catalog_http`)
 
-The local catalog runtime ties together the HTTP API, filesystem discovery, and file watcher into a single process that serves the catalog from your local disk.
+**Module:** `backend/app/catalog_http/`
 
-**Location:** `backend/app/local_catalog/`
+`catalog_http` là HTTP adapter wrap `CatalogWorkspace` với FastAPI, cung cấp REST API cho browser `TopologyViewer`. Module gồm các thành phần:
 
----
+```mermaid
+flowchart TB
+    subgraph catalog_http
+        RT["CatalogRuntime"]
+        API["FastAPI\n(api.py)"]
+        EW["Entity Writes\n(entity_writes.py)"]
+        W["CatalogFileWatcher\n(watcher.py)"]
+        CF["CatalogChangeFeed\n(events.py)"]
+    end
 
-## Entry Point
-
-Start the local catalog with:
-
-```bash
-python -m app.local_catalog
+    WS["CatalogWorkspace"] --> RT
+    SI["CatalogSearchIndex"] --> RT
+    SB["Supabase"] --> EW
+    RT --> API
+    RT --> W
+    RT --> CF
+    EW --> API
 ```
 
-This runs the `LocalCatalogRuntime`, which:
+---
 
-1. Reads `CATALOG_ROOT` from the environment (defaults to `../catalog-info`)
-2. Discovers all `catalog-info.yaml` files under that root
-3. Loads each file into the `CatalogWorkspace`
-4. Starts the file watcher for live updates
-5. Starts the FastAPI HTTP server on `127.0.0.1:8000`
+## :material-play-circle: `CatalogRuntime`
+
+**File:** `catalog_http/runtime.py`
+
+Lớp orchestrator khởi tạo và kết nối các thành phần:
+
+1. Tạo `CatalogWorkspace` với `CatalogScope` từ `CATALOG_ROOT`
+2. Khởi động `CatalogFileWatcher` — quét và theo dõi file
+3. Xây dựng `CatalogSearchIndex` từ `CatalogSnapshot` ban đầu
+4. Đăng ký `CatalogChangeFeed` — SSE pub/sub
+5. Bind FastAPI lên `127.0.0.1:PORT`
+
+### Sync External
+
+```python
+async def sync_external(runtime: CatalogRuntime):
+    entities, relations = fetch_external_catalog()  # Đọc từ Supabase
+    runtime.workspace.adopt_external(entities, relations)
+    runtime.search_index.rebuild(runtime.workspace.snapshot())
+```
 
 ---
 
-## Filesystem Discovery
+## :material-pencil: Entity Writes (`entity_writes.py`)
 
-**File:** `backend/app/local_catalog/filesystem.py`
+Luồng ghi entity external qua Supabase — **không** áp dụng cho local files.
 
-The discovery process:
+### Các operation
 
-1. **Recursively walks** all directories under `CATALOG_ROOT`
-2. **Looks for** files named exactly `catalog-info.yaml`
-3. **Skips** these directories: `.git`, `.venv`, `node_modules`, `dist`, `build`, `__pycache__`, and directories starting with `.`
-4. **Skips** symbolic links and junctions
-5. **Skips** files larger than 1 MB
-6. **Returns** a list of `(source_uri, relative_path, content)` tuples
+| Function | Mô tả | HTTP Endpoint |
+|---|---|---|
+| `create_entity(text)` | Parse YAML → validate → insert row Supabase | `POST /api/v1/catalog/entities` |
+| `replace_entity(ref, text, version)` | Re-validate → update row | `PUT /api/v1/catalog/entities/{ref}` |
+| `delete_entity(ref, version)` | Xóa row, giữ lại relation trỏ tới | `DELETE /api/v1/catalog/entities/{ref}` |
+| `set_entity_field(ref, path, value, version)` | Sửa 1 scalar field | `PATCH /api/v1/catalog/entities/{ref}/field` |
+| `append_entity_owner(ref, user, role, version)` | Thêm owner member | `POST /api/v1/catalog/entities/{ref}/owners` |
+| `remove_entity_owner(ref, index, version)` | Xóa owner member | `DELETE /api/v1/catalog/entities/{ref}/owners/{index}` |
 
----
+### Validation flow
 
-## FastAPI Application
+Tất cả writes đều qua `validate_descriptor_text()`:
 
-**File:** `backend/app/local_catalog/api.py`
+1. `HardenedYamlParser.parse()` — parse YAML text
+2. `CatalogValidationEngine.validate()` — schema + topology
+3. Nếu có blocking `ValidationIssue` → raise `EntityInvalid` (HTTP `422`)
+4. Nếu ok → ghi vào Supabase
 
-The HTTP server provides 7 endpoints:
+### Optimistic concurrency
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Server status and catalog stats |
-| `/api/v1/catalog/snapshot` | GET | Full catalog snapshot |
-| `/api/v1/catalog/topology` | GET | One-hop focused topology |
-| `/api/v1/catalog/diagnostics` | GET | All active diagnostics |
-| `/api/v1/catalog/events` | GET | SSE change notification stream |
-| `/api/v1/catalog/source` | GET | Read a descriptor file |
-| `/api/v1/catalog/source` | PUT | Update a descriptor file |
+- `expected_version` = giá trị `updated_at` từ Supabase row
+- Nếu row đã thay đổi → `EntityVersionConflict` (HTTP `409`)
 
-All endpoints return JSON. The server binds to `127.0.0.1:8000` (loopback only — not accessible from the network).
+### Lỗi
 
-See the full API reference at [API Endpoints](../api/endpoints.md).
-
----
-
-## Security Model
-
-The local catalog runtime is designed to run **only on your machine**:
-
-- Binds to `127.0.0.1` (localhost only)
-- No authentication or authorization
-- The PUT `/api/v1/catalog/source` endpoint uses **optimistic concurrency** (SHA-256 content hashing) to prevent write conflicts
-- Source files must be within the catalog root — path traversal is blocked
-- Symbolic links are not followed
+| Exception | HTTP Code | Mô tả |
+|---|---|---|
+| `EntityInvalid` | `422` | Validation failed |
+| `EntityNotFound` | `404` | Reference không tồn tại |
+| `EntityAlreadyExists` | `409` | POST nhưng reference đã có |
+| `EntityVersionConflict` | `409` | PUT/DELETE nhưng version mismatch |
 
 ---
 
-## Further Reading
+## :material-broadcast: `CatalogChangeFeed`
 
-- [API Endpoints](../api/endpoints.md) — Detailed endpoint documentation
-- [File Watcher](file-watcher.md) — How changes are detected
-- [Configuration](../getting-started/configuration.md) — Environment variables
+**File:** `catalog_http/events.py`
+
+SSE pub/sub feed thông báo revision thay đổi tới browser client.
+
+- Endpoint: `GET /api/v1/catalog/events` → `text/event-stream`
+- Payload: `CatalogChangeNotification` chứa `revision`, `changed_source_uris`, `removed_source_uris`
+- Client nhận event → refetch `CatalogSnapshot` hoặc `FocusedTopology`
+
+---
+
+## :material-link: Đọc thêm
+
+- [Tham chiếu Endpoints](../api/endpoints.md)
+- [`CatalogFileWatcher`](file-watcher.md)
+- [`CatalogWorkspace`](catalog-workspace.md)

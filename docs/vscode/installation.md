@@ -1,71 +1,50 @@
 ---
-title: Extension Installation
-description: Building and installing the Local Catalog Topology VS Code extension.
+title: Cài đặt
+description: Hướng dẫn đóng gói và cài đặt VS Code Extension.
 ---
 
-# :material-download-circle-outline: Extension Installation
+# :material-download: Cài đặt
 
-This guide explains how to build and install the VS Code extension for your own use.
+## Cài đặt từ mã nguồn (Development)
 
----
+Để phát triển hoặc thử nghiệm extension trực tiếp:
 
-## Step 1: Build the Extension
-
-You need Node.js installed to build the extension.
-
-1. Open your terminal
-2. Navigate to the extension folder:
-   ```bash
-   cd idp-platform/vscode-extension
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Build the extension package (`.vsix` file):
-   ```bash
-   npx vsce package
-   ```
-
-You should now see a file named something like `local-catalog-topology-vscode-0.1.0.vsix` in the directory.
+1. Mở thư mục `idp-platform` trong VS Code.
+2. Mở terminal, đi tới thư mục extension:
+    ```bash
+    cd vscode-extension
+    npm install
+    ```
+3. Mở Run and Debug panel (`Ctrl+Shift+D` / `Cmd+Shift+D`).
+4. Chọn **"Run Extension"** và nhấn F5. Một cửa sổ VS Code mới (Extension Development Host) sẽ mở ra với extension đã được nạp.
 
 ---
 
-## Step 2: Install in VS Code
+## Đóng gói VSIX để cài đặt thủ công
 
-### Method A: Using the Command Palette
+Để cài đặt extension vào bản VS Code thông thường của bạn (hoặc chia sẻ cho người khác):
 
-1. Open VS Code
-2. Open the Command Palette (++ctrl+shift+p++ or ++cmd+shift+p++ on Mac)
-3. Type **Extensions: Install from VSIX...** and select it
-4. Find the `.vsix` file you just built and select it
-5. Reload VS Code if prompted
+1. Đi tới thư mục extension:
+    ```bash
+    cd idp-platform/vscode-extension
+    npm install
+    ```
+2. Cài đặt `vsce` (công cụ đóng gói của VS Code) nếu chưa có:
+    ```bash
+    npm install -g @vscode/vsce
+    ```
+3. Đóng gói:
+    ```bash
+    vsce package --no-dependencies
+    ```
+   Lệnh này sẽ tạo ra một file `.vsix` (ví dụ: `local-catalog-topology-vscode-0.1.0.vsix`).
 
-### Method B: Using the CLI
+4. Cài đặt file VSIX:
+    - Qua giao diện: Vào mục Extensions (`Ctrl+Shift+X`), click vào icon "..." góc trên phải, chọn "Install from VSIX..." và trỏ tới file vừa tạo.
+    - Qua command line:
+      ```bash
+      code --install-extension local-catalog-topology-vscode-0.1.0.vsix
+      ```
 
-If you have the `code` CLI tool installed, you can install it directly from your terminal:
-
-```bash
-code --install-extension local-catalog-topology-vscode-0.1.0.vsix
-```
-
----
-
-## Step 3: Verify it Works
-
-1. Open a folder in VS Code that contains a `catalog-info.yaml` file
-2. Open the `catalog-info.yaml` file
-3. Look at the bottom-right corner of VS Code — you should see the Language Server start up
-4. Open the Command Palette and run **Catalog: Open Topology Beside**
-
-If the topology webview appears and shows your entity, the installation was successful!
-
----
-
-## Troubleshooting
-
-**"Language Server failed to start"**
-The extension needs to find a Python environment to run the server. See [Configuration](configuration.md) to set the correct Python path.
-
-**"Command not found"**
-Make sure you are editing a file named `catalog-info.yaml` or a file that is recognized as YAML by VS Code. The extension only activates when a YAML file is open.
+!!! note "Backend requirements"
+    Extension này khởi chạy một process Python chạy `CatalogLanguageServer`. Do đó, Python 3.12+ và các dependencies trong `backend/requirements.txt` phải có sẵn trong môi trường của bạn (hoặc cấu hình qua biến môi trường của extension).

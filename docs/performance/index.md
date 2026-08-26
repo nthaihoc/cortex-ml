@@ -1,35 +1,27 @@
 ---
-title: Performance
-description: Performance characteristics and limits of the IDP Platform.
+title: Hiệu năng
+description: Tổng quan về hiệu năng xử lý (Performance) của IDP Platform.
 ---
 
-# :material-gauge: Performance
+# :material-gauge: Hiệu năng
 
-The IDP Platform is designed as a **local-first** developer tool. Because there is no network database and all data fits in memory, it is extremely fast.
-
----
+Mục tiêu thiết kế của phần backend IDP Platform là tốc độ — phải đủ nhanh để cập nhật realtime cho trình duyệt và LSP client mà không bị "giật" (stutter).
 
 <div class="grid cards" markdown>
 
--   :material-timer-outline:{ .lg .middle } **Benchmarks**
+-   :material-arrow-expand-all: **Khả năng mở rộng (Scalability)**
 
-    Measured performance for loading, querying, and searching large catalogs.
+    Cách hệ thống xử lý bộ dataset khổng lồ.
 
-    [:octicons-arrow-right-24: Benchmarks](benchmarks.md)
-
--   :material-chart-line-variant:{ .lg .middle } **Scalability Limits**
-
-    How the system degrades at extreme scale and current limits.
-
-    [:octicons-arrow-right-24: Scalability Limits](scalability.md)
+    [:octicons-arrow-right-24: Scalability](scalability.md)
 
 </div>
 
 ---
 
-## Why it's fast
+## Thiết kế hướng hiệu năng
 
-1. **In-Memory Core:** The entire `CatalogWorkspace` state is kept in RAM. Retrieving the snapshot or a focused topology requires zero disk I/O.
-2. **C Extensions:** The `watchfiles` library uses Rust, and `pyyaml` uses the libyaml C extension (when available) for maximum speed.
-3. **Optimized Algorithms:** The topology graph computation uses a simple adjacency list BFS that runs in microseconds.
-4. **Debouncing:** When you type in your editor, validation is debounced by 300 ms so we don't parse partial words.
+1. **In-memory store:** Trạng thái hệ thống hoàn toàn chứa trong memory. `CatalogWorkspace` không có độ trễ network hay disk I/O khi duyệt topology.
+2. **One-hop traversal:** Frontend không request toàn bộ đồ thị. API `/topology` giới hạn nghiêm ngặt `depth=1` giúp thời gian query là $O(E)$ cục bộ (số edge liên quan), độc lập với tổng size đồ thị.
+3. **Hardened Parser:** Không dùng thư viện YAML tổng quát chậm chạp, mà sử dụng parser tối giản (subset) bỏ đi các tính năng nặng (alias, custom type).
+4. **FTS SQLite:** Tìm kiếm full-text giao phó cho SQLite FTS5 (compiled C extension) chạy in-memory thay vì loop qua dict Python.

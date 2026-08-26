@@ -1,46 +1,45 @@
 ---
-title: Catalog Search
-description: Full-text catalog search implementation in the frontend.
+title: Tìm kiếm Catalog
+description: Full-text search và autocomplete qua CatalogSearchIndex.
 ---
 
-# :material-text-search: Catalog Search
+# :material-magnify: Tìm kiếm Catalog
 
-The frontend provides a search bar to find entities by name, reference, or description. Because the catalog is local and relatively small, **search runs entirely in the browser**.
+## :material-database-search: `CatalogSearchIndex`
 
-**Location:** `frontend/src/topology/catalogSearch.ts`
+**Backend:** `backend/app/catalog_infra/search_index.py`
 
----
+`CatalogSearchIndex` sử dụng SQLite FTS5 (Full-Text Search) cho việc tìm kiếm. Index này là derived cache — descriptor files là source of truth.
 
-## How Search Works
+### Phạm vi tìm kiếm
 
-1. On startup (and when the revision changes), the frontend fetches the **full catalog snapshot** via `GET /api/v1/catalog/snapshot`.
-2. The snapshot is stored in memory.
-3. When you type in the search box, the search function filters the in-memory snapshot immediately.
-4. When you select a result, the `TopologyViewer` re-focuses on that entity's canonical reference.
+- Canonical `EntityReference`
+- `display_name`, `metadata.title`, `metadata.description`
+- `metadata.tags`, `metadata.labels`, `metadata.annotations`
+- `spec.type`, `spec.owners`
+- Source paths
+- `DraftEntity` và `IdentityConflict`
 
----
+### Lifecycle
 
-## Ranking Algorithm
-
-Search results are ranked based on where the match was found:
-
-1. **Exact match on reference:** e.g., typing `component:platform/payment`
-2. **Match on display name:** e.g., typing `Payment Gateway`
-3. **Match on description:** e.g., typing `handles credit cards`
-
-The search is **case-insensitive** and uses simple substring matching.
+1. Xây dựng ban đầu từ `CatalogSnapshot` khi `CatalogRuntime` khởi động
+2. Rebuild sau mỗi `CatalogFileWatcher` revision
+3. Rebuild khi tạo entity mới qua Supabase
+4. Xóa an toàn — tự tạo lại từ `CatalogSnapshot` hiện tại
 
 ---
 
-## Performance Limits
+## :material-web: `HttpCatalogClient`
 
-In benchmarks (`frontend/src/topology/catalogSearch.bench.ts`), the in-browser search filters 5,000 entities in **under 3 ms**.
+**Frontend:** `frontend/src/catalog/HttpCatalogClient.ts`
 
-For local workspaces, 5,000 entities is well beyond typical sizes (usually < 500), so the in-browser approach is both simple and extremely fast.
+Client HTTP gọi `CatalogSearchIndex` qua backend.
 
----
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| `search(q, limit)` | `GET /api/v1/catalog/search` | Full-text search |
+| `suggestions(q, limit)` | `GET /api/v1/catalog/suggestions` | Autocomplete (mặc định 8 kết quả) |
 
-## Further Reading
+### Fallback
 
-- [Topology Viewer](topology-viewer.md) — What happens when you select a search result
-- [Performance Benchmarks](../performance/benchmarks.md) — Search and render timings
+Khi backend tạm thời không khả dụng, `HttpCatalogClient` có client-side fallback sử dụng cached `CatalogSnapshot`.

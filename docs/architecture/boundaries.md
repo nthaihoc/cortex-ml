@@ -1,106 +1,125 @@
 ---
-title: Module Boundaries
-description: Rules about what each component is allowed to do and what it must not do.
+title: Ranh giới Module
+description: Quy tắc ràng buộc và trách nhiệm của từng thành phần trong IDP Platform.
 ---
 
-# :material-wall: Module Boundaries
+# :material-fence: Ranh giới Module
 
-Each component in the IDP Platform has clear rules about what it can and cannot do. These rules prevent bugs and keep the codebase easy to understand.
-
----
-
-## The Core Rule
-
-!!! important "Python owns all catalog logic"
-    All validation, normalization, identity resolution, and relation projection happens in Python. TypeScript components (frontend, VS Code extension) **must never** re-implement any of these rules.
-
-This means:
-
-- ✅ TypeScript can display data it receives from Python
-- ✅ TypeScript can format, filter, and search data for display
-- ❌ TypeScript must **never** validate a descriptor
-- ❌ TypeScript must **never** compute an entity reference
-- ❌ TypeScript must **never** decide if a relation is healthy or broken
+Mỗi thành phần có trách nhiệm rõ ràng và ràng buộc tường minh (explicit constraints).
 
 ---
 
-## Component Boundary Rules
+## :material-brain: `CatalogWorkspace`
 
-### CatalogWorkspace (`backend/app/catalog_workspace/`)
+**Module:** `backend/app/catalog_workspace/`
 
-| Allowed | Not Allowed |
-|---------|-------------|
-| Parse, normalize, validate descriptors | Read files from disk directly |
-| Track entities, relations, conflicts, drafts | Know about HTTP, FastAPI, or REST |
-| Compute focused topology | Know about LSP protocol |
-| Generate diagnostics | Know about file paths or OS details |
-| Manage revision numbers | Send notifications to clients |
-
-The CatalogWorkspace receives raw bytes and produces structured data. It does not know where the bytes come from (filesystem, HTTP, editor buffer).
-
-### Local Catalog Runtime (`backend/app/local_catalog/`)
-
-| Allowed | Not Allowed |
-|---------|-------------|
-| Discover `catalog-info.yaml` files on disk | Validate descriptor content |
-| Watch for filesystem changes | Normalize entity references |
-| Pass file content to CatalogWorkspace | Compute relations |
-| Serve HTTP API endpoints | Know about VS Code or LSP |
-| Publish SSE change notifications | Modify CatalogWorkspace internals |
-
-### Language Server (`backend/app/catalog_language_server/`)
-
-| Allowed | Not Allowed |
-|---------|-------------|
-| Handle LSP protocol messages | Validate descriptor content |
-| Pass editor buffer to CatalogWorkspace | Normalize entity references |
-| Convert diagnostics to LSP format | Serve HTTP endpoints |
-| Respond to topology requests | Access the filesystem directly |
-| Debounce unsaved changes | Know about FastAPI or REST |
-
-### Frontend (`frontend/src/`)
-
-| Allowed | Not Allowed |
-|---------|-------------|
-| Display topology graph using ReactFlow | Validate descriptors |
-| Fetch data from the HTTP API | Compute entity references |
-| Search entities by name | Re-implement validation logic |
-| Show health/freshness visual states | Modify catalog state |
-
-### VS Code Extension (`vscode-extension/src/`)
-
-| Allowed | Not Allowed |
-|---------|-------------|
-| Start/stop the Language Server | Validate descriptors |
-| Show LSP diagnostics in the editor | Parse YAML files |
-| Display topology in a webview panel | Compute relations |
-| Respond to VS Code commands | Access the HTTP API |
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Lưu trữ** | Hoàn toàn in-memory; không persist |
+| **Concurrency** | Single-threaded; caller chịu trách nhiệm serialization |
+| **Traversal depth** | Cố định 1 hop (enforce trong `focused_topology()`) |
+| **Authority** | Hai document cùng canonical `EntityReference` → `IdentityConflict`; không entity nào thắng |
+| **Invariant** | Document chưa bao giờ valid = `DraftEntity`; document valid rồi invalid = giữ last-valid `CatalogEntity` (`Health.error`, `Freshness.stale`) |
 
 ---
 
-## Dependency Direction
+## :material-folder-outline: Filesystem Adapter
 
-Dependencies always point **inward** — from the outer layers toward the core:
+**Module:** `backend/app/catalog_infra/filesystem.py`
 
-```mermaid
-flowchart LR
-    REACT["React Frontend"] --> API["FastAPI"]
-    VSCODE["VS Code Extension"] --> LSP["Language Server"]
-    API --> CW["CatalogWorkspace"]
-    LSP --> CW
-    CW --> INGEST["Ingest Pipeline"]
-    CW --> VALID["Validation Engine"]
-    INGEST --> DOMAIN["Domain Models"]
-    VALID --> DOMAIN
-
-```
-
-!!! warning "No reverse dependencies"
-    The core modules (`catalog_workspace`, `ingest`, `validators`, `domain`) must **never** import from the adapter or presentation layers. If you see `from app.local_catalog import ...` inside `workspace.py`, that is a bug.
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Target files** | Chỉ file có tên chính xác `catalog-info.yaml` |
+| **Depth** | Quét đệ quy không giới hạn trong Catalog Root |
+| **Loại trừ** | Thư mục ẩn (`.`-prefixed), `node_modules`, `__pycache__`, `.venv` |
+| **Symlink** | Không bao giờ follow symlink và junction |
+| **Kích thước** | File > 1 MB bị skip, phát sinh `CatalogDiagnostic` `CATALOG_DESCRIPTOR_TOO_LARGE` |
 
 ---
 
-## Further Reading
+## :material-http: `catalog_http`
 
-- [System Overview](overview.md) — All components and the repository structure
-- [Data Flow](data-flow.md) — How data moves through the layers
+**Module:** `backend/app/catalog_http/`
+
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Bind address** | `127.0.0.1` — loopback only, không bao giờ `0.0.0.0` |
+| **CORS** | Chỉ chấp nhận `VITE_ORIGIN` (mặc định `http://localhost:5173`) |
+| **Authentication** | Không có — loopback-only by design |
+| **Source writes** | Chỉ ghi vào file `catalog-info.yaml` đã discovered |
+| **Entity writes** | Ghi entity external qua Supabase, validate bằng `CatalogValidationEngine` trước khi lưu |
+| **Path traversal** | Ngăn chặn bằng `pathlib.resolve()` + `relative_to()` |
+| **Optimistic concurrency** | SHA-256 `expected_version` cho PUT source; `updated_at` cho entity writes |
+| **Kích thước** | PUT request > 1 MB → `413` |
+
+---
+
+## :material-language-python: `catalog_language_server`
+
+**Module:** `backend/app/catalog_language_server/`
+
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Transport** | `stdio` — không mở network port |
+| **Scope** | Một `CatalogScope` cho mỗi `CatalogLanguageServer` instance |
+| **Document types** | Chỉ file `catalog-info.yaml` trong workspace folders |
+| **Unsaved overlays** | Áp dụng sau 300 ms debounce; phiên bản cũ bị discard |
+| **Depth** | Cố định `depth=1` cho topology requests |
+| **Folder management** | Phản hồi `workspace/didChangeWorkspaceFolders` động |
+
+---
+
+## :material-microsoft-visual-studio-code: VS Code Extension
+
+**Module:** `vscode-extension/src/`
+
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Catalog rules** | Extension **không** implement bất kỳ quy tắc validation nào |
+| **Active editor follow** | Cập nhật focus khi editor thay đổi, trừ khi đang "pinned" |
+| **Pin state** | Người dùng kiểm soát; ngăn tự động thay đổi focus |
+| **Request cancellation** | Topology request cũ bị cancel khi có request mới |
+| **Message validation** | Webview message được validate trước khi xử lý |
+| **Trusted workspaces** | **Không** hỗ trợ untrusted workspace |
+
+---
+
+## :material-react: Frontend (React)
+
+**Module:** `frontend/src/`
+
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Catalog rules** | Frontend **không** implement validation rules |
+| **Graph scope** | `TopologyViewer` chỉ mount node từ `FocusedTopology` response |
+| **Search** | `HttpCatalogClient` gọi `CatalogSearchIndex` qua backend; có client fallback cho transient failures |
+| **Navigation** | Click node liên quan → đặt node đó làm root mới |
+| **Real-time** | SSE-driven refetch qua `CatalogChangeFeed`; không áp dụng semantic delta |
+
+---
+
+## :material-database-search: `CatalogSearchIndex`
+
+**Module:** `backend/app/catalog_infra/search_index.py`
+
+| Ràng buộc | Chi tiết |
+|---|---|
+| **Database** | SQLite với FTS5; không cần database server |
+| **Authority** | Chỉ là derived cache; descriptor files là source of truth |
+| **Phạm vi tìm kiếm** | Canonical reference, tất cả descriptor fields, source paths, `DraftEntity`, `IdentityConflict` |
+| **Đồng bộ** | Rebuild sau startup, sau mỗi `CatalogFileWatcher` revision, và khi tạo entity mới |
+| **Lifecycle** | Xóa an toàn; tự tạo lại từ `CatalogSnapshot` hiện tại |
+
+---
+
+## :material-transfer: Quy ước đặt tên qua ranh giới
+
+| Ranh giới | Quy ước | Ví dụ |
+|---|---|---|
+| Python internal | `snake_case` | `entity_ref`, `source_uri` |
+| HTTP API (`openapi.yaml`) | `snake_case` | `entity_count`, `relative_path` |
+| Custom LSP methods | `camelCase` | `catalogRevision`, `changedDocumentUri` |
+| Webview protocol | `camelCase` | `displayName`, `relationType` |
+
+!!! info "Explicit mapper"
+    `CatalogLanguageService` trong `service.py` chuyển đổi tường minh giữa Python `snake_case` và LSP `camelCase`. Contract fixtures trong `contracts/examples/` kiểm thử các chuyển đổi này.

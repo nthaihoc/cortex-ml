@@ -1,75 +1,39 @@
 ---
-title: Descriptor Format
-description: How to write catalog-info.yaml files for the IDP Platform.
+title: Định dạng Descriptor
+description: Hướng dẫn viết file catalog-info.yaml cho VSF IDP v2 và Backstage.
 ---
 
-# :material-file-code-outline: Descriptor Format
+# :material-file-code-outline: Định dạng Descriptor
 
-The IDP Platform reads `catalog-info.yaml` files to build the catalog. These files describe your services, APIs, and how they connect to each other.
-
-The platform supports **two formats**:
-
-| Format | Identifier | Status |
-|--------|-----------|--------|
-| **VSF IDP v2** | `specVersion: vsf-idp.io/v2` | ✅ Primary — use this for new services |
-| **Backstage** | `apiVersion: backstage.io/v1alpha1` | ✅ Supported — for migration from Backstage |
-
-Both formats can be used in the same workspace. The validation engine handles each format with its own rules.
-
----
+File `catalog-info.yaml` là đơn vị dữ liệu cơ bản của IDP Platform. Mỗi file mô tả một entity (service, component, system, ...) và quan hệ (topology) của nó.
 
 <div class="grid cards" markdown>
 
--   :material-star:{ .lg .middle } **VSF IDP v2**
+-   :material-new-box: **VSF IDP v2**
 
-    The primary format for all new services. Includes ownership, review gates, and typed topology.
+    Định dạng chính, sử dụng `specVersion: vsf-idp.io/v2`.
 
-    [:octicons-arrow-right-24: VSF IDP v2 Reference](vsf-v2.md)
+    [:octicons-arrow-right-24: VSF IDP v2](vsf-v2.md)
 
--   :material-swap-horizontal:{ .lg .middle } **Backstage Compatibility**
+-   :material-swap-horizontal: **Tương thích Backstage**
 
-    How Backstage-format descriptors work alongside VSF IDP v2.
+    Hỗ trợ đầy đủ descriptor format của Backstage.
 
-    [:octicons-arrow-right-24: Backstage Guide](backstage.md)
+    [:octicons-arrow-right-24: Backstage](backstage.md)
 
--   :material-key:{ .lg .middle } **Identity Rules**
+-   :material-fingerprint: **Quy tắc định danh**
 
-    How entity identity is computed and what happens with conflicts.
+    Canonical `EntityReference` — `kind:namespace/name`.
 
-    [:octicons-arrow-right-24: Identity Rules](identity.md)
+    [:octicons-arrow-right-24: Định danh](identity.md)
 
--   :material-graph:{ .lg .middle } **Topology Fields**
+-   :material-graph: **Trường Topology**
 
-    How to declare connections between services.
+    Khai báo quan hệ giữa các entity qua `spec.topology`.
 
-    [:octicons-arrow-right-24: Topology Fields](topology.md)
+    [:octicons-arrow-right-24: Topology](topology.md)
 
 </div>
 
----
-
-## Quick Example
-
-Here is a minimal valid VSF IDP v2 descriptor:
-
-```yaml
-specVersion: vsf-idp.io/v2
-
-metadata:
-  namespace: platform
-  system: idp-core
-  domain: Platform Engineering
-
-spec:
-  id: my-service
-  name: My Service
-  type: service
-  owners:
-    members:
-      - user: alice@vinsmartfuture.tech
-        role: techlead
-  review:
-    branch: main
-```
-
-This creates an entity with the canonical reference `component:platform/my-service`.
+!!! info "Dual Schema"
+    `CatalogValidationEngine` tự phát hiện format dựa trên sự hiện diện của `specVersion`. Nếu `specVersion` tồn tại → VSF IDP v2; nếu không → Backstage.

@@ -10,3 +10,9 @@
 *[URI]: Uniform Resource Identifier
 *[SHA]: Secure Hash Algorithm
 *[CORS]: Cross-Origin Resource Sharing
+*[FTS]: Full-Text Search
+*[SQLite]: SQLite Database Engine
+*[SSE]: Server-Sent Events
+*[CRUD]: Create, Read, Update, Delete
+*[OCC]: Optimistic Concurrency Control
+*[ReactFlow]: ReactFlow Graph Library

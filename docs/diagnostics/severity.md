@@ -1,52 +1,37 @@
 ---
-title: Severity & Blocking
-description: Understanding error vs warning severity and blocking diagnostics.
+title: Hướng dẫn mức độ
+description: Sự khác biệt giữa Error và Warning trong hệ thống Diagnostics.
 ---
 
-# :material-shield-alert: Severity & Blocking
+# :material-alert-circle-outline: Hướng dẫn mức độ (Severity)
 
-Every diagnostic has a **Severity** and a **Blocking** flag. Understanding the difference between these is crucial for fixing catalog issues.
+Trường `severity` trong `CatalogDiagnostic` chỉ định mức độ nghiêm trọng của vấn đề, ảnh hưởng trực tiếp đến trạng thái của entity.
 
----
+## :material-close-circle: Error (Lỗi)
 
-## Severity
+Mức độ `error` báo hiệu một lỗi vi phạm nghiêm trọng (syntax, schema, danh tính).
 
-Severity determines **how the diagnostic is presented** to the user.
+- Lỗi parse YAML.
+- Lỗi thiếu trường bắt buộc (`spec.id`, `metadata.domain`).
+- Lỗi cấu trúc sai (`spec` không phải object).
+- Lỗi trùng lặp danh tính (`IdentityConflict`).
 
-| Severity | VS Code | Webview | API (`health`) |
-|----------|---------|---------|----------------|
-| `error` | Red squiggly line | Red border | `"error"` |
-| `warning` | Yellow squiggly line | Yellow border | `"warning"` |
-
-The API computes the overall `health` of an entity by taking the highest severity diagnostic attached to it. If an entity has both a warning and an error, its health is `"error"`.
-
----
-
-## Blocking Flag
-
-The `blocking` boolean flag determines **whether the entity is registered** in the catalog.
-
-### `blocking: true` (Draft or Stale)
-If a file has *any* blocking diagnostic, the `CatalogWorkspace` rejects it. 
-- If the file was never valid before, it becomes a **Draft**.
-- If the file was previously valid, it becomes **Stale** (we keep showing the last valid state).
-
-*Example:* A YAML syntax error (`YAML_SYNTAX_ERROR`) means we literally cannot read the file. We have to block it.
-
-### `blocking: false` (Registered)
-If a file has *only* non-blocking diagnostics (warnings), it is successfully registered in the catalog and appears as a normal entity.
-
-*Example:* Referencing an entity that doesn't exist yet (`REFERENCE_TARGET_NOT_FOUND`) is non-blocking. The entity is registered, and the missing target appears as an `Unresolved` node in the topology.
+**Tác động:**
+- Hầu hết `error` đi kèm với cờ `blocking = true`.
+- Nếu file đang tạo entity lần đầu: Entity không thể hình thành, được xếp vào `DraftEntity`. (Frontend hiển thị màu xám).
+- Nếu file đang cập nhật entity hợp lệ cũ: Hệ thống từ chối cập nhật, giữ nguyên dữ liệu cuối cùng hợp lệ ("last-valid state") và đánh dấu entity thành `Health.error`, `Freshness.stale`. (Frontend hiển thị nét đứt màu đỏ).
 
 ---
 
-## Matrix
+## :material-alert: Warning (Cảnh báo)
 
-Most diagnostics are blocking errors. There are currently no blocking warnings.
+Mức độ `warning` báo hiệu dữ liệu vẫn hợp lệ để hệ thống hiểu, nhưng có yếu tố bất thường về mặt logic hoặc nghiệp vụ.
 
-| Type | Blocking (`true`) | Non-Blocking (`false`) |
-|------|------------------|-----------------------|
-| **Error** | 20 codes (e.g., `SCHEMA_FIELD_INVALID`) | 0 codes |
-| **Warning** | 0 codes | 1 code (`REFERENCE_TARGET_NOT_FOUND`) |
+- **`REFERENCE_TARGET_NOT_FOUND`**: Entity khai báo gọi tới `component:platform/unknown`, nhưng không file nào chứa entity đó.
+- **`TOPOLOGY_SELF_REFERENCE`**: Entity khai báo gọi tới chính nó.
 
-*Note: The platform is designed so that future custom validators could emit non-blocking errors (e.g., a mandatory company policy violation that shouldn't break the graph).*
+**Tác động:**
+- Cờ `blocking = false`.
+- Entity vẫn được cập nhật bình thường vào `CatalogSnapshot`.
+- Entity sẽ có trạng thái `Health.warning`, `Freshness.current`. (Frontend hiển thị viền liền màu vàng).
+- Các relation "khuyết" (target not found) vẫn được đưa vào đồ thị nhưng nút mục tiêu hiển thị màu xám (`TopologyNodeState.unresolved`).

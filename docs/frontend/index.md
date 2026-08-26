@@ -1,57 +1,60 @@
 ---
 title: Frontend
-description: React browser viewer for the IDP Platform catalog topology.
+description: Tổng quan React frontend — TopologyViewer, HttpCatalogClient, và catalog search.
 ---
 
 # :material-react: Frontend
 
-The frontend is a **React 19** application that displays the catalog topology in your browser. It uses **ReactFlow** to render the interactive graph and **Vite** for the development server.
-
-**Location:** `frontend/src/`
-
----
+Frontend sử dụng React 19 + ReactFlow 11 + Vite, cung cấp `TopologyViewer` trên browser.
 
 <div class="grid cards" markdown>
 
--   :material-graph:{ .lg .middle } **Topology Viewer**
+-   :material-graph: **`TopologyViewer`**
 
-    The main ReactFlow component that renders nodes and edges.
+    Component chính hiển thị focused topology graph.
 
-    [:octicons-arrow-right-24: Topology Viewer](topology-viewer.md)
+    [:octicons-arrow-right-24: Chi tiết](topology-viewer.md)
 
--   :material-text-search:{ .lg .middle } **Catalog Search**
+-   :material-magnify: **Tìm kiếm Catalog**
 
-    The full-text search implementation for finding entities.
+    Full-text search qua `CatalogSearchIndex`.
 
-    [:octicons-arrow-right-24: Catalog Search](catalog-search.md)
+    [:octicons-arrow-right-24: Chi tiết](catalog-search.md)
 
--   :material-palette-outline:{ .lg .middle } **Visual States**
+-   :material-palette: **Trạng thái hiển thị**
 
-    How health, freshness, and node types are styled.
+    Màu sắc và icon theo `Health`, `Freshness`, `TopologyNodeState`.
 
-    [:octicons-arrow-right-24: Visual States](visual-states.md)
+    [:octicons-arrow-right-24: Chi tiết](visual-states.md)
 
 </div>
 
 ---
 
-## Design Principles
+## :material-cog: Stack
 
-Following the [Module Boundaries](../architecture/boundaries.md) rules, the frontend is **pure presentation**.
+| Thành phần | Phiên bản | Vai trò |
+|---|---|---|
+| React | 19 | UI framework |
+| ReactFlow | 11 | Graph rendering |
+| Vite | 7 | Dev server + bundler |
+| TypeScript | 5.6+ | Type safety |
 
-- **No Validation:** It never parses YAML or checks schema rules.
-- **No Identity Resolution:** It uses the `reference` strings exactly as provided by the API.
-- **State Driven:** It just reacts to the `/api/v1/catalog/topology` data.
+## :material-layers-outline: Cấu trúc
 
----
-
-## API Client
-
-The `HttpLocalCatalogClient` (`frontend/src/localCatalog/HttpLocalCatalogClient.ts`) handles all communication with the backend.
-
-It provides typed methods for:
-- Fetching the health status
-- Fetching the focused topology
-- Connecting to the SSE stream (`/api/v1/catalog/events`)
-
-When the SSE stream emits a `revisionChanged` event, the client triggers a callback that tells React to re-fetch the current view.
+```
+frontend/src/
+├── main.tsx                    # React root
+├── app/App.tsx                 # Application shell
+├── catalog/
+│   ├── HttpCatalogClient.ts    # HTTP API client
+│   ├── CatalogProvider.tsx     # React context
+│   ├── client.ts               # Client interface
+│   └── types.ts                # TypeScript types
+└── topology/
+    ├── TopologyViewer.tsx       # Main component
+    ├── topologyLayout.ts        # Graph layout algorithm
+    ├── localContract.ts         # API type mapping
+    ├── catalogSearch.ts         # Search logic
+    └── types.ts                 # Shared types
+```

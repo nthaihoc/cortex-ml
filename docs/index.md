@@ -1,6 +1,6 @@
 ---
 title: IDP Platform — Local Catalog Topology
-description: Developer documentation for the VSF IDP v2 Local Catalog Topology platform.
+description: Tài liệu kỹ thuật cho nền tảng VSF IDP v2 Local Catalog Topology.
 hide:
   - navigation
   - toc
@@ -10,35 +10,35 @@ hide:
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch-outline:{ .lg .middle } **Get Started**
+-   :material-rocket-launch-outline:{ .lg .middle } **Bắt đầu**
 
     ---
 
-    Set up the platform in minutes. No database, no containers, no cloud services needed.
+    Khởi chạy hệ thống từ đầu trong vài phút. Không cần database, container, hay dịch vụ bên ngoài.
 
-    [:octicons-arrow-right-24: Getting Started](getting-started/index.md)
+    [:octicons-arrow-right-24: Bắt đầu](getting-started/index.md)
 
--   :material-sitemap:{ .lg .middle } **Architecture**
-
-    ---
-
-    Learn how the system works: `CatalogWorkspace` at the core, with FastAPI, LSP, React, and VS Code as adapters.
-
-    [:octicons-arrow-right-24: Architecture](architecture/index.md)
-
--   :material-file-code-outline:{ .lg .middle } **Descriptor Format**
+-   :material-sitemap:{ .lg .middle } **Kiến trúc**
 
     ---
 
-    Write `catalog-info.yaml` files using VSF IDP v2 or Backstage format.
+    Thiết kế phân lớp: `CatalogWorkspace` là core, FastAPI và LSP (Language Server Protocol) là adapter, React và VS Code là viewer.
 
-    [:octicons-arrow-right-24: Descriptor Guide](descriptor/index.md)
+    [:octicons-arrow-right-24: Kiến trúc](architecture/index.md)
+
+-   :material-file-code-outline:{ .lg .middle } **Định dạng Descriptor**
+
+    ---
+
+    Viết file `catalog-info.yaml` theo chuẩn VSF IDP v2 (`specVersion: vsf-idp.io/v2`), tương thích ngược với Backstage.
+
+    [:octicons-arrow-right-24: Descriptor](descriptor/index.md)
 
 -   :material-api:{ .lg .middle } **HTTP API**
 
     ---
 
-    Local REST API for catalog snapshots, topology views, diagnostics, and live SSE events.
+    REST API loopback-only: `CatalogSnapshot`, focused topology, diagnostics, SSE events, entity CRUD qua Supabase.
 
     [:octicons-arrow-right-24: API Reference](api/index.md)
 
@@ -46,86 +46,102 @@ hide:
 
     ---
 
-    See validation errors and topology graphs directly in your editor, with live updates as you type.
+    Live validation diagnostics và one-hop topology preview trực tiếp trong editor, sử dụng `CatalogLanguageServer` qua stdio.
 
-    [:octicons-arrow-right-24: Extension Guide](vscode/index.md)
+    [:octicons-arrow-right-24: Extension](vscode/index.md)
 
--   :material-gauge:{ .lg .middle } **Performance**
+-   :material-gauge:{ .lg .middle } **Hiệu năng**
 
     ---
 
-    Benchmarks show 1,000 entities load in ~511 ms and focused views respond in under 5 ms.
+    Benchmark đo thực tế: 1.000 entity dưới 2 giây khởi động, 5.000 entity ở p95 87 ms cho focused topology.
 
-    [:octicons-arrow-right-24: Performance](performance/index.md)
+    [:octicons-arrow-right-24: Hiệu năng](performance/index.md)
 
 </div>
 
 ---
 
-## What is IDP Platform?
+## :material-information-outline: IDP Platform là gì?
 
-**IDP Platform** is a **local-first developer tool** for browsing the declared service topology in your workspace. It reads `catalog-info.yaml` files from your local disk, validates them, and shows the service graph — in a browser or inside VS Code.
+**IDP Platform** là một **development-environment vertical slice** cho việc duyệt declared topology từ các file `catalog-info.yaml` theo chuẩn VSF IDP v2.
 
-**No database, no remote server, no login required.** Everything runs on your machine.
+Hệ thống cho phép lập trình viên **xem biểu đồ quan hệ dịch vụ (service graph) của workspace theo thời gian thực** — trên trình duyệt hoặc trong VS Code — **không cần** dịch vụ bên ngoài, database, authentication, hay kết nối mạng (sau khi cài đặt dependency).
+
+---
+
+## :material-layers-outline: Tổng quan kiến trúc
 
 ```mermaid
-flowchart LR
-    FILES["📄 catalog-info.yaml\nfiles on disk"] --> CW["🧠 CatalogWorkspace\n(Python core)"]
-    CW --> API["🌐 FastAPI\nHTTP API"]
-    CW --> LSP["🔌 Language Server\n(LSP over stdio)"]
-    API --> BROWSER["⚛️ React Viewer\n(Browser)"]
-    LSP --> VSCODE["💻 VS Code\nExtension"]
+flowchart TB
+    subgraph Input["Nguồn dữ liệu"]
+        F[/"catalog-info.yaml files"/]
+        S[("Supabase\nexternal catalog")]
+    end
 
+    subgraph Core["CatalogWorkspace"]
+        W["Ingest Pipeline\nparse → normalize → validate → project"]
+        ST["In-memory State\nentities, relations, conflicts, drafts"]
+    end
+
+    subgraph Adapter["Adapter Layer"]
+        H["catalog_http\nFastAPI + CatalogFileWatcher"]
+        L["catalog_language_server\nstdio LSP"]
+    end
+
+    subgraph Viewer["Presentation Layer"]
+        R["React + ReactFlow\nTopologyViewer"]
+        V["VS Code Extension\n+ Webview"]
+    end
+
+    F --> W
+    S --> H
+    W --> ST
+    ST --> H
+    ST --> L
+    H --> R
+    L --> V
 ```
 
-!!! info "Design Philosophy"
-    **Python owns all catalog logic.** The HTTP layer and LSP server are thin adapters. TypeScript and React only handle display. This means the same validation engine runs everywhere — filesystem scanning, HTTP requests, and editor diagnostics all produce the same results.
+!!! info "Triết lý thiết kế"
+    **Python sở hữu toàn bộ catalog semantics.** Tầng HTTP và LSP là thin adapter chỉ chuyển đổi định dạng dữ liệu. TypeScript và React chỉ đảm nhận presentation. Nhờ đó, cùng một `CatalogValidationEngine` chạy cho filesystem scanning, HTTP requests, và editor diagnostics.
 
 ---
 
-## Key Features
+## :material-feature-search-outline: Tính năng chính
 
-| Feature | Description |
+| Tính năng | Mô tả |
 |---|---|
-| :material-file-search: **File Discovery** | Automatically finds all `catalog-info.yaml` files in your project folders |
-| :material-check-all: **Two Schema Formats** | Supports both VSF IDP v2 (`specVersion: vsf-idp.io/v2`) and Backstage descriptors |
-| :material-graph: **Topology Graph** | Shows a one-hop view of service connections — click any node to explore further |
-| :material-stethoscope: **Live Diagnostics** | Shows errors and warnings with exact file location and suggested fixes |
-| :material-history: **Last-Valid State** | When you break a file while editing, the previous valid version stays visible |
-| :material-alert: **Conflict Detection** | Catches when two files try to define the same service identity |
-| :material-eye: **Real-Time Updates** | Saving a file automatically updates the browser view and editor diagnostics |
-| :material-microsoft-visual-studio-code: **Editor Integration** | See validation errors and topology webview directly in VS Code |
-| :material-speedometer: **Fast** | 1,000 entities load in ~511 ms; focused topology responds in under 5 ms |
+| :material-file-search: **File Discovery** | Quét đệ quy tất cả file `catalog-info.yaml` trong Catalog Root |
+| :material-check-all: **Dual Schema** | Hỗ trợ VSF IDP v2 (`specVersion: vsf-idp.io/v2`) và Backstage descriptor |
+| :material-graph: **Focused Topology** | Duyệt one-hop, điều hướng tương tác qua click node |
+| :material-stethoscope: **Live Diagnostics** | Diagnostic có mã ổn định, severity, và field-level `DocumentProvenance` |
+| :material-history: **Last-valid State** | Document invalid giữ `CatalogEntity` hợp lệ cuối cùng với `Health.error`, `Freshness.stale` |
+| :material-alert: **Conflict Detection** | Duplicate canonical `EntityReference` hiển thị dưới dạng `IdentityConflict` |
+| :material-eye: **Real-Time** | `CatalogFileWatcher` + `CatalogChangeFeed` (SSE) giữ browser đồng bộ tự động |
+| :material-microsoft-visual-studio-code: **Editor** | LSP diagnostics + topology webview, debounce 300 ms cho unsaved changes |
+| :material-cloud-sync: **External Catalog** | Đồng bộ entity/relation từ Supabase qua `POST /api/v1/catalog/sync-external` |
+| :material-speedometer: **Hiệu năng** | 1.000 entity: < 2 s khởi động; 5.000 entity: < 90 ms p95 focused topology |
 
 ---
 
-## Project Map
+## :material-map: Bản đồ dự án
 
 ```
 idp-platform/
-├── backend/            # Python — API server, catalog engine, LSP, file watcher
+├── backend/            # Python FastAPI + catalog engine
 │   └── app/
-│       ├── catalog_workspace/   # Core: CatalogWorkspace (all catalog logic)
-│       ├── ingest/              # YAML parsing, normalization, relation projection
-│       ├── validators/          # Schema + reference + topology validation
-│       ├── domain/              # Entity, EntityReference, RelationType
-│       ├── local_catalog/       # HTTP server, file watcher, filesystem adapter
-│       └── catalog_language_server/  # LSP server for VS Code
-├── frontend/           # React + ReactFlow — browser topology viewer
-├── vscode-extension/   # VS Code extension — LSP client + topology webview
-├── cli/                # CLI tool (planned, not yet ready)
-├── openapi/            # OpenAPI 3.1 specification
-├── contracts/          # Contract-tested JSON examples
-└── site/docs/          # This documentation (MkDocs Material)
+│       ├── catalog_workspace/        # ← Core: CatalogWorkspace
+│       ├── ingest/                   # HardenedYamlParser, BackstageEntityNormalizer
+│       ├── validators/               # CatalogValidationEngine
+│       ├── domain/                   # EntityReference, RelationType
+│       ├── catalog_infra/            # CatalogSearchIndex, Supabase sync
+│       ├── catalog_http/             # FastAPI, CatalogRuntime, CatalogFileWatcher
+│       └── catalog_language_server/  # CatalogLanguageServer (stdio)
+├── frontend/           # React + ReactFlow — TopologyViewer
+├── vscode-extension/   # VS Code Extension (LSP client + webview)
+├── cli/                # Typer-based catalog CLI
+├── openapi/            # OpenAPI 3.1 contract (openapi.yaml)
+├── contracts/          # Contract-tested JSON fixtures
+└── site/docs/          # ← Toàn bộ tài liệu (bạn đang đọc)
 ```
-
----
-
-## References
-
-- [Backstage Software Catalog](https://backstage.io/docs/features/software-catalog/)
-- [OpenAPI Specification 3.1](https://spec.openapis.org/oas/v3.1.0)
-- [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
-- [MkDocs Material Documentation](https://squidfunk.github.io/mkdocs-material/)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [ReactFlow Documentation](https://reactflow.dev/)

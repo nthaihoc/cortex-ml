@@ -1,87 +1,104 @@
 ---
-title: LSP Protocol
-description: Standard LSP lifecycle events handled by the catalog language server.
+title: Giao thức LSP
+description: Standard LSP lifecycle events của CatalogLanguageServer.
 ---
 
-# :material-swap-horizontal: LSP Protocol Events
+# :material-protocol: Giao thức LSP
 
-The Catalog Language Server handles standard LSP lifecycle events to track file changes and publish diagnostics.
-
-**Location:** `backend/app/catalog_language_server/server.py`
-
----
-
-## Initialization (`initialize`)
-
-When the VS Code extension starts the server, it sends an `initialize` request containing the workspace folders.
-
-**What the server does:**
-
-1. Reads the workspace folder URIs
-2. Uses the `filesystem` module to discover all `catalog-info.yaml` files in those folders
-3. Loads all discovered files into the `CatalogWorkspace`
-4. Responds that it is ready
+`CatalogLanguageServer` triển khai standard LSP lifecycle events để duy trì workspace state và cung cấp diagnostics.
 
 ---
 
-## Document Opened (`textDocument/didOpen`)
+## :material-power: `initialize`
 
-When you open a `catalog-info.yaml` file in VS Code.
+Khi VS Code Extension khởi tạo `CatalogLanguageServer`:
 
-**What the server does:**
-
-1. Reads the file content from the message (VS Code sends the content)
-2. Calls `workspace.upsert_document()`
-3. Formats any issues as LSP `Diagnostic` objects
-4. Sends a `textDocument/publishDiagnostics` notification back to VS Code
+- Tạo `CatalogWorkspace` bao gồm tất cả workspace folders trong một `CatalogScope`
+- Discover và load tất cả file `catalog-info.yaml`
+- Publish diagnostics ban đầu cho tất cả document đã load
 
 ---
 
-## Document Changed (`textDocument/didChange`)
+## :material-folder-multiple: `workspace/didChangeWorkspaceFolders`
 
-When you type in a `catalog-info.yaml` file (before saving).
-
-**What the server does:**
-
-1. **Debounce:** Waits ~300 ms after your last keystroke to avoid validating every single letter
-2. Calls `workspace.upsert_document()` with the new unsaved content
-3. Sends updated diagnostics via `textDocument/publishDiagnostics`
-4. Sends a custom `catalog/revisionChanged` notification (see [Custom Methods](custom-methods.md))
-
-!!! success "Live Validation"
-    Because the server uses the exact same `CatalogWorkspace` as the HTTP API, you get the same validation errors while typing that you would get after saving.
+- **Folder thêm:** Discover, load, cập nhật scope
+- **Folder xóa:** Remove document, cập nhật scope
+- Gửi `catalog/revisionChanged` notification sau mỗi thay đổi
 
 ---
 
-## Document Closed (`textDocument/didClose`)
+## :material-file-plus: `textDocument/didOpen`
 
-When you close a file in VS Code without saving.
-
-**What the server does:**
-
-1. Drops the unsaved buffer content
-2. Reloads the actual file content from disk
-3. Calls `workspace.upsert_document()` with the disk content
-4. Publishes updated diagnostics
+- Đăng ký document trong open-documents map
+- Lên lịch debounced analysis (300 ms)
+- Chỉ xử lý file `catalog-info.yaml` trong workspace roots
 
 ---
 
-## Diagnostics Format
+## :material-file-edit: `textDocument/didChange`
 
-When the server sends diagnostics to VS Code, it maps our `CatalogDiagnostic` to the LSP `Diagnostic` format:
-
-| Catalog Field | LSP Field | How it maps |
-|---------------|-----------|-------------|
-| `severity` | `severity` | `error` → `Error` (1), `warning` → `Warning` (2) |
-| `message` | `message` | The human-readable message |
-| `code` | `code` | Our string code (e.g., `SCHEMA_FIELD_REQUIRED`) |
-| `provenance` | `range` | We map the JSON path (e.g., `spec.owners`) to a line and column range in the text |
-
-If a diagnostic has no specific `field_path` (like a general YAML syntax error), it is highlighted on line 1.
+- Cập nhật in-memory buffer với text mới nhất
+- Lên lịch debounced analysis
+- Bỏ qua thay đổi có version cũ hơn (lower version)
 
 ---
 
-## Further Reading
+## :material-content-save: `textDocument/didSave`
+
+- Cập nhật in-memory buffer với nội dung đã lưu
+- Re-schedule analysis
+- Thêm document URI vào root's known sources
+
+---
+
+## :material-file-remove: `textDocument/didClose`
+
+- Xóa in-memory overlay
+- Reload file on-disk và re-upsert vào `CatalogWorkspace`
+- Nếu file không còn tồn tại → remove document
+- Publish diagnostics clearing unsaved version
+
+---
+
+## :material-stethoscope: `textDocument/publishDiagnostics`
+
+Sau mỗi document change, `CatalogLanguageService` publish diagnostics cho **tất cả document bị ảnh hưởng**:
+
+```json
+{
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "uri": "file:///path/to/catalog-info.yaml",
+    "version": 5,
+    "diagnostics": [{
+      "range": {"start": {"line": 10, "character": 2}, "end": {"line": 10, "character": 2}},
+      "severity": 1,
+      "code": "SCHEMA_FIELD_REQUIRED",
+      "source": "local-catalog",
+      "message": "spec.owners.members requires at least one techlead"
+    }]
+  }
+}
+```
+
+| LSP Severity | Mô tả |
+|---|---|
+| `1` (Error) | Blocking `CatalogDiagnostic` |
+| `2` (Warning) | Non-blocking `CatalogDiagnostic` |
+
+---
+
+## :material-lightbulb-on: `textDocument/completion`
+
+Completion cho file `catalog-info.yaml` đang soạn, context-aware:
+
+- Field keys cho VSF IDP v2 và Backstage
+- Giá trị cố định: `spec.type`, owner `role`, `specVersion`, `kind`
+- Giá trị từ catalog: namespaces, systems, domains, `EntityReference` cho relation fields
+
+---
+
+## :material-link: Đọc thêm
 
 - [Custom Methods](custom-methods.md)
-- [Validation Engine](../backend/validation.md)
+- [LSP Specification — Lifecycle](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages)

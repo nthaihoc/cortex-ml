@@ -1,52 +1,20 @@
 ---
-title: VS Code Commands
-description: Available VS Code commands provided by the Local Catalog Topology extension.
+title: Các lệnh
+description: Danh sách command (Command Palette) của extension.
 ---
 
-# :material-keyboard: VS Code Commands
+# :material-console-line: Các lệnh (Commands)
 
-The extension registers three commands in the VS Code Command Palette. You can find them by pressing ++ctrl+shift+p++ (++cmd+shift+p++ on Mac) and typing "Catalog".
+Tất cả các lệnh của extension có thể được truy cập thông qua **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`).
 
----
+## Danh sách Lệnh
 
-## `Catalog: Open Topology Beside`
+| Tên lệnh | Command ID | Chức năng |
+|---|---|---|
+| **Catalog: Open Topology Sidebar** | `catalogTopology.openSidebar` | Mở/focus vào Webview sidebar hiển thị biểu đồ topology tương tác. Biểu đồ sẽ thay đổi theo file `catalog-info.yaml` đang active. |
+| **Catalog: Restart Server** | `catalogTopology.restartServer` | Khởi động lại tiến trình Python chạy `CatalogLanguageServer`. Hữu ích nếu server gặp lỗi hoặc bạn vừa cập nhật Python environment. |
 
-**Command ID:** `catalogTopology.openBeside`
-
-Opens the Topology Webview in a new editor column next to your current file.
-
-- **What it does:** Shows the one-hop topology graph for the `catalog-info.yaml` file you are currently editing.
-- **Live updates:** As you type in the YAML file, the graph updates automatically (after a 300 ms debounce).
-- **Draft mode:** If the file has errors, the graph will show a "Draft" node instead of the full entity.
-
----
-
-## `Catalog: Open Focused Source`
-
-**Command ID:** `catalogTopology.openSource`
-
-Opens the source YAML file for whatever node is currently selected in the webview.
-
-- **How to use:** First, click a node in the webview graph. Then run this command (or double-click the node, if supported).
-- **What it does:** It asks the backend for the `source_uri` of the selected entity and opens that file in VS Code. If the file is outside the current VS Code workspace, it may prompt you.
-
----
-
-## `Catalog: Restart Language Server`
-
-**Command ID:** `catalogTopology.restartLanguageServer`
-
-Force-restarts the Python LSP server process in the background.
-
-- **When to use:**
-    - If the server crashes or stops responding
-    - If you changed the Python path in settings
-    - If you just installed new Python dependencies
-- **What it does:** Kills the old Python process, starts a new one, and re-sends the `initialize` message with your workspace folders.
-
----
-
-## Further Reading
-
-- [Language Server Protocol](../lsp/protocol.md) — How the extension talks to the server
-- [Configuration](configuration.md) — Settings that affect these commands
+!!! tip "Trạng thái Pin (Ghim)"
+    Khi mở Topology Sidebar, bạn có một nút "Pin" (ghim). 
+    - Nếu **không ghim**, sidebar sẽ tự động thay đổi nội dung (refetch topology) khi bạn chuyển sang chỉnh sửa file `catalog-info.yaml` khác.
+    - Nếu **đã ghim**, sidebar sẽ đứng im với entity hiện tại dù bạn mở file nào.

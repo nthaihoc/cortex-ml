@@ -1,38 +1,36 @@
 ---
-title: Testing
-description: Overview of the testing strategy for the IDP Platform.
+title: Kiểm thử
+description: Hướng dẫn về cách chạy và viết Test cho IDP Platform.
 ---
 
-# :material-test-tube: Testing
+# :material-test-tube: Kiểm thử (Testing)
 
-The IDP Platform has a comprehensive test suite across the backend, frontend, and VS Code extension.
-
----
+Dự án IDP Platform yêu cầu mức độ cover cao cho các core domain module, đặc biệt là `CatalogWorkspace` và `CatalogValidationEngine`.
 
 <div class="grid cards" markdown>
 
--   :material-language-python:{ .lg .middle } **Backend Testing**
+-   :material-language-python: **Backend Tests**
 
-    Pytest suite for the validation engine, parser, and API.
+    Sử dụng Pytest.
 
-    [:octicons-arrow-right-24: Backend Testing](backend.md)
+    [:octicons-arrow-right-24: Backend](backend.md)
 
--   :material-react:{ .lg .middle } **Frontend Testing**
+-   :material-react: **Frontend Tests**
 
-    Vitest suite for the React viewer and layout algorithms.
+    Sử dụng Vitest và React Testing Library.
 
-    [:octicons-arrow-right-24: Frontend Testing](frontend.md)
+    [:octicons-arrow-right-24: Frontend](frontend.md)
 
--   :material-microsoft-visual-studio-code:{ .lg .middle } **Extension Testing**
+-   :material-microsoft-visual-studio-code: **Extension Tests**
 
-    Mocha tests running inside a headless VS Code instance.
+    Integration test của VS Code.
 
-    [:octicons-arrow-right-24: Extension Testing](extension.md)
+    [:octicons-arrow-right-24: Extension](extension.md)
 
--   :material-handshake-outline:{ .lg .middle } **Contract Testing**
+-   :material-checkbox-marked-circle-outline: **Phạm vi chấp nhận**
 
-    JSON examples that ensure the API and UI stay in sync.
+    Criteria cho Acceptance Testing.
 
-    [:octicons-arrow-right-24: Contract Tests](acceptance.md)
+    [:octicons-arrow-right-24: Acceptance](acceptance.md)
 
 </div>

@@ -1,6 +1,6 @@
-site_name: "IDP Platform — Local Catalog Topology"
-site_description: "Complete developer documentation for the VSF IDP v2 Local Catalog Topology platform — covering architecture, API, CLI, VS Code extension, and more."
-site_url: ""
+site_name: "IDP Platform — Technical Documentation"
+site_description: "Complete technical documentation for the VSF IDP v2 Local Catalog Topology platform — architecture, API, VS Code extension, and more."
+site_url: "https://github.com/truongabc-group1/idp"
 docs_dir: docs
 
 repo_name: "truongabc-group1/idp"
@@ -15,21 +15,21 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: blue
-      accent: light blue
+      primary: indigo
+      accent: blue
       toggle:
         icon: material/weather-sunny
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: blue
-      accent: light blue
+      primary: indigo
+      accent: blue
       toggle:
         icon: material/weather-night
         name: Switch to light mode
   font:
-    text: Roboto
-    code: Fira Code
+    text: Inter
+    code: JetBrains Mono
   icon:
     repo: fontawesome/brands/github
     logo: material/graph-outline
@@ -47,6 +47,8 @@ theme:
     - navigation.instant
     - navigation.instant.prefetch
     - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
     - search.highlight
@@ -61,6 +63,8 @@ plugins:
       minify_html: true
 
 extra:
+  version:
+    provider: mike
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/truongabc-group1/idp
@@ -140,8 +144,8 @@ nav:
       - CatalogWorkspace: backend/catalog-workspace.md
       - Ingest Pipeline: backend/ingest-pipeline.md
       - Validation Engine: backend/validation.md
-      - Local HTTP Runtime: backend/local-catalog.md
-      - File Watcher: backend/file-watcher.md
+      - HTTP Runtime: backend/local-catalog.md
+      - CatalogFileWatcher: backend/file-watcher.md
   - HTTP API:
       - api/index.md
       - Endpoints Reference: api/endpoints.md
@@ -153,7 +157,7 @@ nav:
       - Custom Methods: lsp/custom-methods.md
   - Frontend:
       - frontend/index.md
-      - Topology Viewer: frontend/topology-viewer.md
+      - TopologyViewer: frontend/topology-viewer.md
       - Catalog Search: frontend/catalog-search.md
       - Visual States: frontend/visual-states.md
   - VS Code Extension:
@@ -162,16 +166,12 @@ nav:
       - Commands: vscode/commands.md
       - Configuration: vscode/configuration.md
       - Webview Protocol: vscode/webview-protocol.md
-  - CLI:
-      - cli/index.md
-      - Commands: cli/commands.md
   - Diagnostics:
       - diagnostics/index.md
       - Diagnostic Codes: diagnostics/codes.md
       - Severity Guide: diagnostics/severity.md
   - Performance:
       - performance/index.md
-      - Benchmarks: performance/benchmarks.md
       - Scalability: performance/scalability.md
   - Testing:
       - testing/index.md

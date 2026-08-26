@@ -1,48 +1,23 @@
 ---
-title: Frontend Testing
-description: Running and writing tests for the React frontend.
+title: Frontend Tests
+description: Kiểm thử các React Component.
 ---
 
-# :material-react: Frontend Testing
+# :material-react: Frontend Tests
 
-The frontend uses `vitest` for fast, headless unit testing of React components and logic.
+Frontend sử dụng `Vitest` làm test runner và `React Testing Library` để kiểm tra behavior của component.
 
-**Location:** `frontend/src/**/*.test.ts` and `*.test.tsx`
-
----
-
-## Running Tests
+## Cách chạy
 
 ```bash
-cd idp-platform/frontend
-
-# Run all tests
-npm test
-
-# Run tests in watch mode (reruns on file save)
-npm run test:watch
-
-# Run with coverage report
-npm run coverage
+cd frontend
+npm run test
 ```
 
----
+## Phạm vi (Scope)
 
-## What We Test
+Các test tập trung vào:
 
-Because the frontend is pure presentation (no validation logic), the tests focus on:
-
-1. **API Client (`HttpLocalCatalogClient.test.ts`)**
-   - Verifying URL construction
-   - Verifying error handling (404, 500)
-2. **Search Logic (`catalogSearch.test.ts` & `catalogSearch.bench.ts`)**
-   - Verifying the ranking algorithm (exact match > display name > description)
-   - Benchmarking search performance
-3. **Layout Logic (`topologyLayout.local.test.ts`)**
-   - Verifying nodes are placed in the correct concentric circles based on relation type
-
----
-
-## No E2E Tests (Yet)
-
-We currently do not run heavy End-to-End (E2E) browser tests like Playwright. We rely on the contract tests to ensure the JSON payloads are correct, and unit tests to verify the UI logic.
+1. **`HttpCatalogClient`**: Mock API (fetch) để đảm bảo client gửi request đúng, URL encode đúng.
+2. **`TopologyViewer`**: Đảm bảo component mount đúng, render đúng các `TopologyNode` màu đỏ/xanh/vàng tương ứng với các trạng thái mock từ HTTP.
+3. **`catalogSearch.ts`**: Kiểm tra tính năng debounce.

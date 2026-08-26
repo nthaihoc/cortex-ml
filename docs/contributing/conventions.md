@@ -1,77 +1,26 @@
 ---
-title: Coding Conventions
-description: Linting, typing, and style guidelines for the IDP Platform.
+title: Quy ước Code
+description: Quy chuẩn coding và đặt tên bắt buộc trong mã nguồn.
 ---
 
-# :material-code-tags-check: Coding Conventions
+# :material-format-title: Quy ước Code (Conventions)
 
-To keep the codebase maintainable, we enforce strict formatting and typing rules across both Python and TypeScript.
+## 1. Naming Convention (Thuật ngữ)
 
----
+Đây là quy tắc **RẤT QUAN TRỌNG**. Hãy xem bảng chi tiết tại [Bảng Quy ước tên](https://nthoc.github.io/idp/architecture/). Một số điều bắt buộc:
 
-## Python Conventions
+- **Tên Class Backend:** Luôn có tiền tố chỉ domain nếu cần. Sử dụng `CatalogWorkspace`, `CatalogValidationEngine`. (Tuyệt đối không viết tắt thành `Workspace` hay `Engine`).
+- **Python Variables:** `snake_case`. (Ví dụ: `entity_ref`).
+- **LSP Methods & REST Fields:** `camelCase` hoặc `snake_case` phải đồng nhất đúng theo OpenAPI (Tham chiếu file `openapi.yaml`).
 
-We use **Ruff** for all Python linting and formatting. It replaces Flake8, Black, and isort.
+## 2. Python (Backend)
 
-### Running Ruff
+- Format: `black` và `ruff`. (Chạy lệnh `ruff check . --fix`).
+- Type Hints: 100% bắt buộc. `mypy --strict` phải pass. (Không dùng `Any` nếu không thật sự cần).
+- Docstring: Cho tất cả các public method của các lớp quan trọng (`CatalogWorkspace`).
 
-```bash
-cd idp-platform/backend
+## 3. TypeScript (Frontend & VS Code)
 
-# Check for errors
-ruff check .
-
-# Fix auto-fixable errors
-ruff check --fix .
-
-# Format code
-ruff format .
-```
-
-### Python Typing (Strict)
-
-The backend uses Python 3.12+ type hints. We enforce **strict mode** with `pyright` (or `mypy`).
-
-- Every function signature must be fully typed (arguments and return type).
-- Use `|` for unions (e.g., `str | None` instead of `Optional[str]`).
-- Use built-in generics (e.g., `list[str]`, `dict[str, int]`) instead of the `typing` module.
-- Never use `Any` unless absolutely necessary (and if you do, leave a comment explaining why).
-
----
-
-## TypeScript Conventions
-
-We use **ESLint** for linting and **Prettier** for formatting.
-
-### Running Linters
-
-```bash
-cd idp-platform/frontend  # or vscode-extension
-
-# Check for errors
-npm run lint
-
-# Format code
-npm run format
-```
-
-### TypeScript Typing (Strict)
-
-Both the frontend and VS Code extension run with `"strict": true` in `tsconfig.json`.
-
-- Every variable and function must have a type.
-- Avoid `any`. Use `unknown` if you truly don't know the type, and then narrow it with a type guard.
-- Interfaces for API responses must exactly match the JSON Contracts in `contracts/examples/`.
-
----
-
-## Documentation Conventions
-
-This site uses **MkDocs Material**.
-
-When writing markdown documentation:
-
-1. **Use clear, B1/B2 English.** Avoid complex idioms or jargon.
-2. **Keep it visual.** Use Mermaid diagrams, icons, and tables where possible.
-3. **Use admonitions.** Highlight important information using `!!! info`, `!!! warning`, etc.
-4. **Include examples.** Don't just describe a field; show a YAML or JSON snippet.
+- Format: `Prettier`.
+- Dùng `interface` hoặc `type` rõ ràng, không xài lạm dụng `any`.
+- Tránh logic nghiệp vụ trong React UI component. Đẩy logic về `CatalogProvider` hoặc custom hooks.

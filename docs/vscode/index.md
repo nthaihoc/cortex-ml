@@ -1,39 +1,35 @@
 ---
 title: VS Code Extension
-description: Local Catalog Topology extension for VS Code.
+description: Tổng quan extension VS Code cho IDP Platform.
 ---
 
 # :material-microsoft-visual-studio-code: VS Code Extension
 
-The IDP Platform includes a VS Code extension that brings the catalog directly into your editor. It provides **live diagnostics** (squiggly lines for errors) and a **topology webview** that updates as you type.
-
-**Location:** `vscode-extension/`
-
----
+Extension VS Code cung cấp live validation và one-hop topology preview trực tiếp trong editor, chạy `CatalogLanguageServer` qua giao thức stdio.
 
 <div class="grid cards" markdown>
 
--   :material-download-circle-outline:{ .lg .middle } **Installation**
+-   :material-download: **Cài đặt**
 
-    How to build and install the extension (`.vsix`) in your editor.
+    Đóng gói và cài đặt extension vào VS Code.
 
-    [:octicons-arrow-right-24: Installation](installation.md)
+    [:octicons-arrow-right-24: Cài đặt](installation.md)
 
--   :material-keyboard:{ .lg .middle } **Commands**
+-   :material-console-line: **Các lệnh**
 
-    All available VS Code commands provided by the extension.
+    Danh sách lệnh VS Code (`Catalog: ...`).
 
-    [:octicons-arrow-right-24: Commands](commands.md)
+    [:octicons-arrow-right-24: Lệnh](commands.md)
 
--   :material-cog-outline:{ .lg .middle } **Configuration**
+-   :material-cog: **Cấu hình**
 
-    Settings for Python paths and server directories.
+    Thiết lập Python path, working directory.
 
-    [:octicons-arrow-right-24: Configuration](configuration.md)
+    [:octicons-arrow-right-24: Cấu hình](configuration.md)
 
--   :material-swap-horizontal:{ .lg .middle } **Webview Protocol**
+-   :material-api: **Giao thức Webview**
 
-    How the extension host talks to the React webview.
+    Message passing giữa Extension Host và Webview React app.
 
     [:octicons-arrow-right-24: Webview Protocol](webview-protocol.md)
 
@@ -41,14 +37,10 @@ The IDP Platform includes a VS Code extension that brings the catalog directly i
 
 ---
 
-## How it Works
+## :material-star: Tính năng
 
-The extension acts as a client for the [Language Server](../lsp/index.md). 
-
-1. When it activates, it starts the Python LSP server in the background.
-2. It sends your unsaved typing to the server.
-3. The server runs the full `CatalogValidationEngine`.
-4. The extension shows the resulting diagnostics in your editor.
-5. The webview uses the custom `catalog/topologyForDocument` method to render the ReactFlow graph.
-
-Because it uses the same Python core as the HTTP API, **validation is identical everywhere**.
+-   **Diagnostics**: Hiển thị lỗi validation ngay lập tức khi soạn thảo.
+-   **Autocomplete**: Gợi ý các trường, `spec.type`, `EntityReference` cho mục topology.
+-   **Topology Webview**: Sidebar hiển thị biểu đồ quan hệ 1-hop tương tác trực tiếp với editor hiện tại (ReactFlow).
+-   **Debounce**: Xử lý mượt mà khi gõ, không cần lưu file mới thấy lỗi.
+-   **Tự động nhận diện Workspace**: Tự động phát hiện `.venv` hoặc python path, theo dõi folder root.

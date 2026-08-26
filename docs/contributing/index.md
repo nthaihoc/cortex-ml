@@ -1,37 +1,24 @@
 ---
-title: Contributing
-description: How to contribute to the IDP Platform repository.
+title: Đóng góp
+description: Thông tin tham gia phát triển IDP Platform.
 ---
 
-# :material-source-pull: Contributing
+# :material-handshake: Đóng góp (Contributing)
 
-Welcome! We appreciate your interest in contributing to the IDP Platform. This section covers the workflow and coding conventions for the project.
-
----
+Cảm ơn bạn đã quan tâm đến việc đóng góp vào hệ thống IDP Platform!
 
 <div class="grid cards" markdown>
 
--   :material-git:{ .lg .middle } **Workflow**
+-   :material-source-branch: **Quy trình phát triển**
 
-    Branching strategy, pull requests, and the review process.
+    PR, Review, và CI.
 
-    [:octicons-arrow-right-24: Development Workflow](workflow.md)
+    [:octicons-arrow-right-24: Workflow](workflow.md)
 
--   :material-code-tags-check:{ .lg .middle } **Coding Conventions**
+-   :material-format-title: **Quy ước Code**
 
-    Linting rules, typing guidelines, and style requirements.
+    Formatting (Black, Prettier, ruff) và Naming Conventions.
 
-    [:octicons-arrow-right-24: Coding Conventions](conventions.md)
+    [:octicons-arrow-right-24: Conventions](conventions.md)
 
 </div>
-
----
-
-## Quick Setup
-
-If you want to start hacking right away:
-
-1. Clone the repository
-2. Run `cp idp-platform/.env.example idp-platform/.env`
-3. Follow the [Installation](../getting-started/installation.md) guide
-4. Read the [Module Boundaries](../architecture/boundaries.md) before making changes

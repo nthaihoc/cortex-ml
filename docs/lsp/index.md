@@ -1,42 +1,23 @@
 ---
-title: Language Server (LSP)
-description: Python LSP server for VS Code integration.
+title: Language Server
+description: Tổng quan CatalogLanguageServer — stdio LSP adapter cho VS Code.
 ---
 
-# :material-protocol: Language Server (LSP)
+# :material-language-python: Language Server
 
-The backend provides a **Language Server** that communicates using the Language Server Protocol (LSP). This server powers the VS Code extension, providing real-time diagnostics and topology data as you type.
-
-**Location:** `backend/app/catalog_language_server/`
-
----
-
-## Architecture
-
-The server uses the `pygls` library and runs over standard input/output (stdio).
-
-```mermaid
-flowchart LR
-    VSCODE["VS Code Extension\n(LSP Client)"] <-->|stdio| SERVER["Language Server\n(pygls)"]
-    SERVER <-->|API| CW["CatalogWorkspace\n(Core)"]
-    
-```
-
-The LSP server is a thin adapter over the `CatalogWorkspace`. It does not validate files itself — it passes file content to the workspace and converts the resulting diagnostics into LSP format.
-
----
+`CatalogLanguageServer` cung cấp LSP (Language Server Protocol) diagnostics, completion, và topology cho VS Code Extension qua giao thức stdio.
 
 <div class="grid cards" markdown>
 
--   :material-swap-horizontal:{ .lg .middle } **LSP Protocol Events**
+-   :material-protocol: **Giao thức LSP**
 
-    How the server handles standard LSP messages (open, change, close).
+    Standard LSP lifecycle events.
 
-    [:octicons-arrow-right-24: Standard Protocol](protocol.md)
+    [:octicons-arrow-right-24: Giao thức](protocol.md)
 
--   :material-call-made:{ .lg .middle } **Custom LSP Methods**
+-   :material-puzzle: **Custom Methods**
 
-    Custom methods added for the topology webview and live updates.
+    Các method mở rộng: topology, field edit, owners, relations.
 
     [:octicons-arrow-right-24: Custom Methods](custom-methods.md)
 
@@ -44,14 +25,30 @@ The LSP server is a thin adapter over the `CatalogWorkspace`. It does not valida
 
 ---
 
-## Running the Server
+## :material-cog: Kiến trúc
 
-You normally don't run the LSP server directly — the VS Code extension starts it for you automatically.
-
-However, you can run it manually for testing:
-
-```bash
-python -m app.catalog_language_server
+```mermaid
+flowchart LR
+    VSC["VS Code Extension"] <-->|stdio| LS["CatalogLanguageServer\n(pygls)"]
+    LS --> SVC["CatalogLanguageService"]
+    SVC --> WS["CatalogWorkspace"]
+    SVC --> SI["CatalogSearchIndex"]
 ```
 
-Because it uses `stdio` (standard input/output), it will block your terminal, waiting for JSON-RPC messages. To stop it, press ++ctrl+c++.
+| Thành phần | File | Vai trò |
+|---|---|---|
+| `CatalogLanguageServer` | `server.py` | pygls server, đăng ký LSP handlers |
+| `CatalogLanguageService` | `service.py` | Business logic, case mapping (`snake_case` ↔ `camelCase`) |
+
+---
+
+## :material-key-variant: Đặc điểm chính
+
+| Đặc điểm | Chi tiết |
+|---|---|
+| **Transport** | stdio (không mở port) |
+| **Scope** | Một `CatalogScope` bao gồm tất cả workspace folders |
+| **Document types** | Chỉ file `catalog-info.yaml` |
+| **Debounce** | 300 ms cho unsaved document changes |
+| **Completion** | Field keys, values, `EntityReference` targets |
+| **Custom methods** | 11 custom methods cho topology, field edit, owners, relations |

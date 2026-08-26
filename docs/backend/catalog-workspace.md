@@ -1,63 +1,57 @@
 ---
 title: CatalogWorkspace
-description: The core module that manages all catalog state — parsing, validation, identity, and topology.
+description: Deep module quản lý toàn bộ catalog state — trung tâm của IDP Platform.
 ---
 
-# :material-brain: CatalogWorkspace
+# :material-brain: `CatalogWorkspace`
 
-`CatalogWorkspace` is the **central engine** of the IDP Platform. Every other component (HTTP API, Language Server, file watcher) talks to this single class to read or update catalog state.
-
-**Location:** `backend/app/catalog_workspace/workspace.py`
+`CatalogWorkspace` (`backend/app/catalog_workspace/workspace.py`) là **deep module** trung tâm. Toàn bộ catalog semantics — parsing, normalization, validation, relation projection, conflict detection, focused traversal, và diagnostics — đi qua class duy nhất này.
 
 ---
 
-## Public Interface
+## :material-api: Public Interface
 
-### Creating a Workspace
+### Khởi tạo
 
 ```python
-from app.catalog_workspace.workspace import CatalogWorkspace
-from app.catalog_workspace.models import CatalogScope
-
 workspace = CatalogWorkspace.open(CatalogScope(roots=("file:///path/to/catalog",)))
 ```
 
-### Adding or Updating a Document
+### Vòng đời Document
 
 ```python
+# Thêm hoặc cập nhật document
 workspace.upsert_document(
-    source_uri="file:///path/to/my-service/catalog-info.yaml",
+    source_uri="file:///path/to/catalog-info.yaml",
     relative_path="my-service/catalog-info.yaml",
     content=b"specVersion: vsf-idp.io/v2\n...",
-    version="optional-sha256-hash",
+    version="optional-version-string",
 )
+
+# Xóa document
+workspace.remove_document("file:///path/to/catalog-info.yaml")
+
+# Nhận dữ liệu external (từ Supabase)
+workspace.adopt_external(entities, relations)
 ```
 
-This call triggers the full pipeline: **parse → validate → normalize → project relations → resolve identity**.
-
-### Removing a Document
+### Đọc trạng thái
 
 ```python
-workspace.remove_document("file:///path/to/my-service/catalog-info.yaml")
-```
+# CatalogSnapshot đầy đủ
+snapshot: CatalogSnapshot = workspace.snapshot()
 
-### Reading the Current State
+# Tất cả CatalogDiagnostic hiện tại
+diagnostics: tuple[CatalogDiagnostic, ...] = workspace.diagnostics()
 
-```python
-# Get everything: entities, relations, conflicts, drafts, diagnostics
-snapshot = workspace.snapshot()
-
-# Get just the diagnostics
-diagnostics = workspace.diagnostics()
-
-# Get a one-hop view around an entity
-topology = workspace.focused_topology(
+# FocusedTopology one-hop
+topology: FocusedTopology = workspace.focused_topology(
     "component:platform/payment-gateway",
-    direction="both",   # "incoming", "outgoing", or "both"
-    depth=1,             # Always 1 (one hop)
+    direction="both",  # "incoming" | "outgoing" | "both"
+    depth=1,           # Cố định bằng 1
 )
 
-# Get a topology view based on a file URI (before entity is resolved)
+# FocusedTopology theo document URI (trước khi entity resolve)
 topology = workspace.focused_topology_for_document(
     "file:///path/to/catalog-info.yaml",
     direction="both",
@@ -66,61 +60,61 @@ topology = workspace.focused_topology_for_document(
 
 ---
 
-## How `upsert_document()` Works
+## :material-state-machine: Luồng xử lý Document
 
-When you call `upsert_document()`, the workspace runs these steps in order:
+Khi `upsert_document()` được gọi:
 
 ```mermaid
 flowchart TD
-    A["1. Parse YAML bytes"] -->|Parse error| F["Mark as Draft or Stale"]
-    A -->|OK| B["2. Run validation"]
-    B -->|Blocking errors| F
-    B -->|OK| C["3. Normalize entity"]
-    C -->|Error| F
-    C -->|OK| D["4. Project relations"]
-    D --> E["5. Resolve identity\n(detect conflicts)"]
-    E --> G["6. Increment revision"]
-    F --> G
-
+    A["upsert_document()"] --> B["HardenedYamlParser.parse()"]
+    B --> C["CatalogValidationEngine.validate()"]
+    C --> D{Blocking issues?}
+    D -->|Có| E{Từng valid trước?}
+    E -->|Có| F["Giữ last-valid CatalogEntity\nHealth.error, Freshness.stale"]
+    E -->|Không| G["Tạo DraftEntity"]
+    D -->|Không| H["BackstageEntityNormalizer.normalize()"]
+    H --> I["Tính canonical EntityReference"]
+    I --> J["Authority resolution"]
+    J --> K{Duplicate ref?}
+    K -->|Có| L["Tạo IdentityConflict"]
+    K -->|Không| M["Lưu CatalogEntity\n+ CatalogRelation"]
+    M --> N["Tăng revision"]
+    F --> N
+    G --> N
+    L --> N
 ```
 
-If any step fails, the document is either:
+---
 
-- **Marked as draft** — if the document was never valid before
-- **Marked as stale** — if the document was valid before (keeps the last valid entity)
+## :material-graph: Thuật toán `FocusedTopology`
+
+`focused_topology(root, direction, depth=1)`:
+
+1. Xây dựng adjacency map outgoing và incoming từ tất cả `CatalogRelation` đã resolve
+2. Bắt đầu với `frontier = {root_ref}`
+3. Cho mỗi hop (depth=1):
+    - Nếu `direction` bao gồm `outgoing`: theo tất cả outgoing edge từ frontier
+    - Nếu `direction` bao gồm `incoming`: theo tất cả incoming edge từ frontier
+    - Thêm node mới vào `included`
+4. Thu thập tất cả `CatalogRelation` liên quan tới bất kỳ cặp node nào trong `included`
+5. Tạo `TopologyNode` cho mỗi reference (`TopologyNodeState.ENTITY` / `DRAFT` / `CONFLICT` / `UNRESOLVED`)
 
 ---
 
-## Focused Topology Algorithm
+## :material-alert: Xử lý `IdentityConflict`
 
-`focused_topology(root, direction, depth=1)` computes a one-hop view:
+Khi hai document claim cùng canonical `EntityReference`:
 
-1. Build adjacency maps from all resolved relations (outgoing and incoming)
-2. Start with `frontier = {root_ref}`
-3. For one hop:
-    - If `direction` is `"outgoing"` or `"both"`: follow all outgoing edges from the frontier
-    - If `direction` is `"incoming"` or `"both"`: follow all incoming edges from the frontier
-4. Collect all relations between the included nodes
-5. Build a `TopologyNode` for each node (with state: entity, draft, conflict, or unresolved)
+1. Cả hai được thêm vào `_candidates_by_ref[reference]`
+2. `_refresh_authority()` phát hiện `len(candidates) > 1` → xóa khỏi `_entities`
+3. `CatalogSnapshot.conflicts` chứa `IdentityConflict`
+4. `CatalogDiagnostic` `ENTITY_DUPLICATE_REF` phát sinh cho mỗi document xung đột
 
 ---
 
-## Conflict Detection
+## :material-data-matrix: Data Models chính
 
-When two documents claim the same canonical reference:
-
-1. Both are added to the internal `_candidates_by_ref` map
-2. The system detects `len(candidates) > 1` → removes the entity from the snapshot
-3. A conflict record is created with references to both source files
-4. Both documents get an `ENTITY_DUPLICATE_REF` blocking diagnostic
-
-When one of the conflicting documents is removed or its identity changes, the remaining document becomes the sole authority and the entity is restored.
-
----
-
-## Data Models
-
-### CatalogSnapshot
+### `CatalogSnapshot`
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -133,31 +127,37 @@ class CatalogSnapshot:
     diagnostics: tuple[CatalogDiagnostic, ...]
 ```
 
-### FocusedTopology
+### `FocusedTopology`
 
 ```python
 @dataclass(frozen=True, slots=True)
 class FocusedTopology:
-    root: str                     # Root entity reference
+    root: str                    # Canonical EntityReference gốc
     direction: TopologyDirection  # "incoming" | "outgoing" | "both"
-    depth: int | None             # Fixed at 1
+    depth: int | None            # Cố định bằng 1
     nodes: Mapping[str, TopologyNode]
     relations: tuple[CatalogRelation, ...]
 ```
 
-### CatalogScope
+### `CatalogEntity`
 
 ```python
 @dataclass(frozen=True, slots=True)
-class CatalogScope:
-    roots: tuple[str, ...]  # One or more catalog root URIs
+class CatalogEntity:
+    reference: EntityReference
+    display_name: str
+    descriptor: dict[str, Any]
+    provenance: DocumentProvenance
+    health: Health
+    freshness: Freshness
+    source: CatalogSource  # local | external
 ```
 
 ---
 
-## Further Reading
+## :material-link: Đọc thêm
 
-- [Ingest Pipeline](ingest-pipeline.md) — How parsing, normalization, and projection work
-- [Validation Engine](validation.md) — How schema checks work
-- [State Management](../architecture/state.md) — Entity lifecycle and conflict handling
-- [API Schemas](../api/schemas.md) — Wire format of the snapshot and topology
+- [Ingest Pipeline](ingest-pipeline.md)
+- [CatalogValidationEngine](validation.md)
+- [Quản lý trạng thái](../architecture/state.md)
+- [Data Schemas API](../api/schemas.md)
